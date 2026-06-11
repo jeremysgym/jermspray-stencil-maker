@@ -712,29 +712,84 @@ export function StencilMaker() {
       </div>
 
       <div className="max-w-7xl mx-auto px-3 pt-4 space-y-6">
-        {/* Upload */}
+        {/* Image box: upload + preview in one */}
         <Card>
           <CardContent className="p-4 space-y-3">
-            <h2 className="display text-2xl">Upload Image</h2>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="w-full h-24 text-base font-semibold" variant="outline">
-                  <ImageIcon className="h-6 w-6 mr-2" /> Click to upload an image
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56">
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                  <Images className="h-4 w-4 mr-2" /> Image library
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                  <FileImage className="h-4 w-4 mr-2" /> Files
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => cameraInputRef.current?.click()}>
-                  <Camera className="h-4 w-4 mr-2" /> Camera
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <p className="text-xs text-muted-foreground text-center">PNG, JPG, WEBP files</p>
+            <h2 className="display text-2xl">Image</h2>
+
+            {!sourceData ? (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="w-full h-40 text-base font-semibold border-dashed" variant="outline">
+                      <ImageIcon className="h-6 w-6 mr-2" /> Click to upload an image
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56">
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                      <Images className="h-4 w-4 mr-2" /> Image library
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                      <FileImage className="h-4 w-4 mr-2" /> Files
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => cameraInputRef.current?.click()}>
+                      <Camera className="h-4 w-4 mr-2" /> Camera
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <p className="text-xs text-muted-foreground text-center">PNG, JPG, WEBP files</p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Tap image to enlarge</span>
+                  <Button size="sm" variant="outline" onClick={() => setShowOriginal((s) => !s)}>
+                    {showOriginal ? "Show Stencil" : "Show Original"}
+                  </Button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMainOpen(true)}
+                  className="block w-full rounded-md overflow-hidden border bg-muted/40"
+                  aria-label="Open main picture"
+                >
+                  {(showOriginal ? originalUrl : previewUrl) && (
+                    <img
+                      src={(showOriginal ? originalUrl : previewUrl)!}
+                      alt="Main picture"
+                      className="w-full h-auto"
+                    />
+                  )}
+                </button>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Switch
+                    checked={bgRemovalEnabled}
+                    onCheckedChange={(v) => {
+                      setBgRemovalEnabled(v);
+                      if (v) setBgEditorOpen(true);
+                    }}
+                    id="bg-rem"
+                  />
+                  <Label htmlFor="bg-rem" className="cursor-pointer flex items-center gap-1">
+                    <Sparkles className="h-4 w-4" /> Remove background
+                  </Label>
+                  {bgRemovalEnabled && (
+                    <Button size="sm" variant="outline" onClick={() => setBgEditorOpen(true)}>
+                      Edit mask
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Replace
+                  </Button>
+                </div>
+              </>
+            )}
+
             <input
               ref={fileInputRef}
               type="file"
@@ -750,27 +805,6 @@ export function StencilMaker() {
               className="hidden"
               onChange={(e) => e.target.files?.[0] && loadFile(e.target.files[0])}
             />
-
-            {sourceData && (
-              <div className="flex items-center gap-3 pt-2">
-                <Switch
-                  checked={bgRemovalEnabled}
-                  onCheckedChange={(v) => {
-                    setBgRemovalEnabled(v);
-                    if (v) setBgEditorOpen(true);
-                  }}
-                  id="bg-rem"
-                />
-                <Label htmlFor="bg-rem" className="cursor-pointer flex items-center gap-1">
-                  <Sparkles className="h-4 w-4" /> Remove background
-                </Label>
-                {bgRemovalEnabled && (
-                  <Button size="sm" variant="outline" onClick={() => setBgEditorOpen(true)}>
-                    Edit mask
-                  </Button>
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
 
