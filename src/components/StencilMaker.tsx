@@ -98,18 +98,18 @@ function drawMarkers(
   height: number,
   size: number,
   inset: number,
+  corners: { tl: boolean; tr: boolean; bl: boolean; br: boolean },
   color = "#000",
 ) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = Math.max(1, size / 8);
   ctx.lineCap = "round";
-  const positions: Array<[number, number]> = [
-    [inset, inset],
-    [width - inset, inset],
-    [inset, height - inset],
-    [width - inset, height - inset],
-  ];
+  const positions: Array<[number, number]> = [];
+  if (corners.tl) positions.push([inset, inset]);
+  if (corners.tr) positions.push([width - inset, inset]);
+  if (corners.bl) positions.push([inset, height - inset]);
+  if (corners.br) positions.push([width - inset, height - inset]);
   for (const [x, y] of positions) {
     ctx.beginPath();
     ctx.moveTo(x - size / 2, y);
