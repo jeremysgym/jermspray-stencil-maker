@@ -1063,7 +1063,7 @@ export function StencilMaker() {
         </DialogContent>
       </Dialog>
 
-      <div className="hidden">{markerCount}</div>
+      
 
     </div>
   );
