@@ -367,7 +367,7 @@ export function StencilMaker() {
       drawMarkers(ctx, canvas.width, canvas.height, markerSize, markerInset, markerCorners);
     }
     return canvas.toDataURL("image/png");
-  }, [workData, labels, palette, hiddenLayers, bgColor, markersEnabled, markerSize, markerInset]);
+  }, [workData, labels, palette, hiddenLayers, bgColor, markersEnabled, markerSize, markerInset, markerCorners]);
 
   const originalUrl = useMemo(() => {
     if (!sourceData) return null;
