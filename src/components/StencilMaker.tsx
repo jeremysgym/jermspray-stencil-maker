@@ -937,26 +937,6 @@ export function StencilMaker() {
               </CardContent>
             </Card>
 
-            {/* Preview */}
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="display text-2xl">Preview</h2>
-                  <Button size="sm" variant="outline" onClick={() => setShowOriginal((s) => !s)}>
-                    {showOriginal ? "Show Stencil" : "Show Original"}
-                  </Button>
-                </div>
-                <div className="rounded-md overflow-hidden border bg-muted/40 flex items-center justify-center">
-                  {(showOriginal ? originalUrl : previewUrl) && (
-                    <img
-                      src={(showOriginal ? originalUrl : previewUrl)!}
-                      alt="Stencil preview"
-                      className="max-w-full h-auto"
-                    />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Layers grid */}
             <Card>
