@@ -871,10 +871,26 @@ export function StencilMaker() {
                         <Label className="min-w-[110px] text-xs">Distance</Label>
                         <Slider value={[markerInset]} min={0} max={200} step={1} onValueChange={(v) => setMarkerInset(v[0])} />
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Label className="min-w-[110px] text-xs">Count</Label>
-                        <Slider value={[markerCount]} min={1} max={4} step={1} onValueChange={(v) => setMarkerCount(v[0])} />
-                        <span className="text-xs text-muted-foreground">{markerCount}</span>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Corners</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {([
+                            ["tl", "Top Left"],
+                            ["tr", "Top Right"],
+                            ["bl", "Bottom Left"],
+                            ["br", "Bottom Right"],
+                          ] as const).map(([key, label]) => (
+                            <Button
+                              key={key}
+                              type="button"
+                              size="sm"
+                              variant={markerCorners[key] ? "default" : "outline"}
+                              onClick={() => setMarkerCorners((c) => ({ ...c, [key]: !c[key] }))}
+                            >
+                              {markerCorners[key] ? "✓ " : ""}{label}
+                            </Button>
+                          ))}
+                        </div>
                       </div>
                     </>
                   )}
