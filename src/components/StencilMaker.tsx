@@ -364,7 +364,7 @@ export function StencilMaker() {
     const canvas = imageDataToCanvas(img);
     if (markersEnabled) {
       const ctx = canvas.getContext("2d")!;
-      drawMarkers(ctx, canvas.width, canvas.height, markerSize, markerInset);
+      drawMarkers(ctx, canvas.width, canvas.height, markerSize, markerInset, markerCorners);
     }
     return canvas.toDataURL("image/png");
   }, [workData, labels, palette, hiddenLayers, bgColor, markersEnabled, markerSize, markerInset]);
