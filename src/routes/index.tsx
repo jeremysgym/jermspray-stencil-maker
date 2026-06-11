@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import bannerAsset from "@/assets/jermspray-banner.png.asset.json";
-import iconAsset from "@/assets/jermspray-icon.png.asset.json";
 import { StencilMaker } from "@/components/StencilMaker";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -28,7 +27,6 @@ function Index() {
           className="w-full h-auto"
         />
         <div className="absolute top-2 right-2 flex items-center gap-2">
-          <img src={iconAsset.url} alt="" className="w-10 h-10 rounded shadow" />
           <ThemeToggle />
         </div>
       </header>
