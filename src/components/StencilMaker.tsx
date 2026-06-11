@@ -405,7 +405,7 @@ export function StencilMaker() {
     const ctx = c.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(src, 0, 0, outWidth, outHeight);
-    if (markersEnabled) drawMarkers(ctx, outWidth, outHeight, markerSize, markerInset);
+    if (markersEnabled) drawMarkers(ctx, outWidth, outHeight, markerSize, markerInset, markerCorners);
     return c;
   };
 
