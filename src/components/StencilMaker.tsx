@@ -302,6 +302,11 @@ export function StencilMaker() {
 
   // Zoom dialog
   const [zoomLayer, setZoomLayer] = useState<number | null>(null);
+  const [mainOpen, setMainOpen] = useState(false);
+  const [imageMapOpen, setImageMapOpen] = useState(false);
+  const [colorChartOpen, setColorChartOpen] = useState(false);
+  const [imageMapUrl, setImageMapUrl] = useState<string | null>(null);
+  const [colorChartUrl, setColorChartUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
