@@ -296,7 +296,7 @@ export function StencilMaker() {
 
   // Markers
   const [markersEnabled, setMarkersEnabled] = useState(false);
-  const [markerCount, setMarkerCount] = useState(4);
+  const [markerCorners, setMarkerCorners] = useState({ tl: true, tr: true, bl: true, br: true });
   const [markerSize, setMarkerSize] = useState(20);
   const [markerInset, setMarkerInset] = useState(24);
 
