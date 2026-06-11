@@ -15,8 +15,8 @@ import {
   Printer,
   Save,
   Sparkles,
-  Trash2,
   X,
+
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -1047,9 +1047,8 @@ export function StencilMaker() {
         </DialogContent>
       </Dialog>
 
-      {/* Hidden marker count placeholder — silences unused warning */}
       <div className="hidden">{markerCount}</div>
-      <div className="hidden">{Trash2 ? null : null}</div>
+
     </div>
   );
 }
