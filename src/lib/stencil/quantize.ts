@@ -13,24 +13,25 @@ export function hexToRgb(hex: string): RGB {
   return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
 }
 
-// Estimate number of distinct dominant colors using a coarse histogram.
+// Estimate the SMALLEST number of distinct dominant colors that still represent the image.
 export function estimateColorCount(data: Uint8ClampedArray, alphaMask?: Uint8Array): number {
+  // Use a coarser bucket (4 bits per channel) and require a larger share of pixels per bucket.
   const bucket = new Map<number, number>();
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] < 16) continue;
     if (alphaMask && alphaMask[i / 4] === 0) continue;
-    const r = data[i] >> 5;
-    const g = data[i + 1] >> 5;
-    const b = data[i + 2] >> 5;
-    const key = (r << 6) | (g << 3) | b;
+    const r = data[i] >> 6;
+    const g = data[i + 1] >> 6;
+    const b = data[i + 2] >> 6;
+    const key = (r << 4) | (g << 2) | b;
     bucket.set(key, (bucket.get(key) ?? 0) + 1);
   }
-  // Count buckets that have at least 0.3% of total pixels.
   const total = Array.from(bucket.values()).reduce((a, b) => a + b, 0);
-  const threshold = Math.max(50, total * 0.003);
+  // Require at least 4% of pixels to count as a dominant color — keeps stencil minimal.
+  const threshold = Math.max(200, total * 0.04);
   let n = 0;
   for (const v of bucket.values()) if (v >= threshold) n++;
-  return Math.max(1, Math.min(25, n));
+  return Math.max(2, Math.min(12, n));
 }
 
 export interface QuantizeResult {

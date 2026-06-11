@@ -98,18 +98,18 @@ function drawMarkers(
   height: number,
   size: number,
   inset: number,
+  corners: { tl: boolean; tr: boolean; bl: boolean; br: boolean },
   color = "#000",
 ) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = Math.max(1, size / 8);
   ctx.lineCap = "round";
-  const positions: Array<[number, number]> = [
-    [inset, inset],
-    [width - inset, inset],
-    [inset, height - inset],
-    [width - inset, height - inset],
-  ];
+  const positions: Array<[number, number]> = [];
+  if (corners.tl) positions.push([inset, inset]);
+  if (corners.tr) positions.push([width - inset, inset]);
+  if (corners.bl) positions.push([inset, height - inset]);
+  if (corners.br) positions.push([width - inset, height - inset]);
   for (const [x, y] of positions) {
     ctx.beginPath();
     ctx.moveTo(x - size / 2, y);
@@ -296,12 +296,17 @@ export function StencilMaker() {
 
   // Markers
   const [markersEnabled, setMarkersEnabled] = useState(false);
-  const [markerCount, setMarkerCount] = useState(4);
+  const [markerCorners, setMarkerCorners] = useState({ tl: true, tr: true, bl: true, br: true });
   const [markerSize, setMarkerSize] = useState(20);
   const [markerInset, setMarkerInset] = useState(24);
 
   // Zoom dialog
   const [zoomLayer, setZoomLayer] = useState<number | null>(null);
+  const [mainOpen, setMainOpen] = useState(false);
+  const [imageMapOpen, setImageMapOpen] = useState(false);
+  const [colorChartOpen, setColorChartOpen] = useState(false);
+  const [imageMapUrl, setImageMapUrl] = useState<string | null>(null);
+  const [colorChartUrl, setColorChartUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -364,10 +369,10 @@ export function StencilMaker() {
     const canvas = imageDataToCanvas(img);
     if (markersEnabled) {
       const ctx = canvas.getContext("2d")!;
-      drawMarkers(ctx, canvas.width, canvas.height, markerSize, markerInset);
+      drawMarkers(ctx, canvas.width, canvas.height, markerSize, markerInset, markerCorners);
     }
     return canvas.toDataURL("image/png");
-  }, [workData, labels, palette, hiddenLayers, bgColor, markersEnabled, markerSize, markerInset]);
+  }, [workData, labels, palette, hiddenLayers, bgColor, markersEnabled, markerSize, markerInset, markerCorners]);
 
   const originalUrl = useMemo(() => {
     if (!sourceData) return null;
@@ -405,7 +410,7 @@ export function StencilMaker() {
     const ctx = c.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(src, 0, 0, outWidth, outHeight);
-    if (markersEnabled) drawMarkers(ctx, outWidth, outHeight, markerSize, markerInset);
+    if (markersEnabled) drawMarkers(ctx, outWidth, outHeight, markerSize, markerInset, markerCorners);
     return c;
   };
 
@@ -712,29 +717,84 @@ export function StencilMaker() {
       </div>
 
       <div className="max-w-7xl mx-auto px-3 pt-4 space-y-6">
-        {/* Upload */}
+        {/* Image box: upload + preview in one */}
         <Card>
           <CardContent className="p-4 space-y-3">
-            <h2 className="display text-2xl">Upload Image</h2>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="w-full h-24 text-base font-semibold" variant="outline">
-                  <ImageIcon className="h-6 w-6 mr-2" /> Click to upload an image
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56">
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                  <Images className="h-4 w-4 mr-2" /> Image library
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                  <FileImage className="h-4 w-4 mr-2" /> Files
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => cameraInputRef.current?.click()}>
-                  <Camera className="h-4 w-4 mr-2" /> Camera
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <p className="text-xs text-muted-foreground text-center">PNG, JPG, WEBP files</p>
+            <h2 className="display text-2xl">Image</h2>
+
+            {!sourceData ? (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="w-full h-40 text-base font-semibold border-dashed" variant="outline">
+                      <ImageIcon className="h-6 w-6 mr-2" /> Click to upload an image
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56">
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                      <Images className="h-4 w-4 mr-2" /> Image library
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                      <FileImage className="h-4 w-4 mr-2" /> Files
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => cameraInputRef.current?.click()}>
+                      <Camera className="h-4 w-4 mr-2" /> Camera
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <p className="text-xs text-muted-foreground text-center">PNG, JPG, WEBP files</p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Tap image to enlarge</span>
+                  <Button size="sm" variant="outline" onClick={() => setShowOriginal((s) => !s)}>
+                    {showOriginal ? "Show Stencil" : "Show Original"}
+                  </Button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMainOpen(true)}
+                  className="block w-full rounded-md overflow-hidden border bg-muted/40"
+                  aria-label="Open main picture"
+                >
+                  {(showOriginal ? originalUrl : previewUrl) && (
+                    <img
+                      src={(showOriginal ? originalUrl : previewUrl)!}
+                      alt="Main picture"
+                      className="w-full h-auto"
+                    />
+                  )}
+                </button>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Switch
+                    checked={bgRemovalEnabled}
+                    onCheckedChange={(v) => {
+                      setBgRemovalEnabled(v);
+                      if (v) setBgEditorOpen(true);
+                    }}
+                    id="bg-rem"
+                  />
+                  <Label htmlFor="bg-rem" className="cursor-pointer flex items-center gap-1">
+                    <Sparkles className="h-4 w-4" /> Remove background
+                  </Label>
+                  {bgRemovalEnabled && (
+                    <Button size="sm" variant="outline" onClick={() => setBgEditorOpen(true)}>
+                      Edit mask
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Replace
+                  </Button>
+                </div>
+              </>
+            )}
+
             <input
               ref={fileInputRef}
               type="file"
@@ -750,27 +810,6 @@ export function StencilMaker() {
               className="hidden"
               onChange={(e) => e.target.files?.[0] && loadFile(e.target.files[0])}
             />
-
-            {sourceData && (
-              <div className="flex items-center gap-3 pt-2">
-                <Switch
-                  checked={bgRemovalEnabled}
-                  onCheckedChange={(v) => {
-                    setBgRemovalEnabled(v);
-                    if (v) setBgEditorOpen(true);
-                  }}
-                  id="bg-rem"
-                />
-                <Label htmlFor="bg-rem" className="cursor-pointer flex items-center gap-1">
-                  <Sparkles className="h-4 w-4" /> Remove background
-                </Label>
-                {bgRemovalEnabled && (
-                  <Button size="sm" variant="outline" onClick={() => setBgEditorOpen(true)}>
-                    Edit mask
-                  </Button>
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -871,10 +910,26 @@ export function StencilMaker() {
                         <Label className="min-w-[110px] text-xs">Distance</Label>
                         <Slider value={[markerInset]} min={0} max={200} step={1} onValueChange={(v) => setMarkerInset(v[0])} />
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Label className="min-w-[110px] text-xs">Count</Label>
-                        <Slider value={[markerCount]} min={1} max={4} step={1} onValueChange={(v) => setMarkerCount(v[0])} />
-                        <span className="text-xs text-muted-foreground">{markerCount}</span>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Corners</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {([
+                            ["tl", "Top Left"],
+                            ["tr", "Top Right"],
+                            ["bl", "Bottom Left"],
+                            ["br", "Bottom Right"],
+                          ] as const).map(([key, label]) => (
+                            <Button
+                              key={key}
+                              type="button"
+                              size="sm"
+                              variant={markerCorners[key] ? "default" : "outline"}
+                              onClick={() => setMarkerCorners((c) => ({ ...c, [key]: !c[key] }))}
+                            >
+                              {markerCorners[key] ? "✓ " : ""}{label}
+                            </Button>
+                          ))}
+                        </div>
                       </div>
                     </>
                   )}
@@ -882,26 +937,6 @@ export function StencilMaker() {
               </CardContent>
             </Card>
 
-            {/* Preview */}
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="display text-2xl">Preview</h2>
-                  <Button size="sm" variant="outline" onClick={() => setShowOriginal((s) => !s)}>
-                    {showOriginal ? "Show Stencil" : "Show Original"}
-                  </Button>
-                </div>
-                <div className="rounded-md overflow-hidden border bg-muted/40 flex items-center justify-center">
-                  {(showOriginal ? originalUrl : previewUrl) && (
-                    <img
-                      src={(showOriginal ? originalUrl : previewUrl)!}
-                      alt="Stencil preview"
-                      className="max-w-full h-auto"
-                    />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Layers grid */}
             <Card>
@@ -1000,24 +1035,108 @@ export function StencilMaker() {
                   <Button onClick={() => downloadAll("svg")} variant="default">
                     <Download className="h-4 w-4 mr-1" /> All SVG (.zip)
                   </Button>
-                  <Button onClick={downloadImageMap} variant="outline">
-                    <Download className="h-4 w-4 mr-1" /> Image Map
-                  </Button>
-                  <Button onClick={downloadColorChart} variant="outline">
-                    <Download className="h-4 w-4 mr-1" /> Color Chart
-                  </Button>
-                  <Button onClick={printImageMap} variant="outline">
-                    <Printer className="h-4 w-4 mr-1" /> Print Image Map
-                  </Button>
-                  <Button onClick={printColorChart} variant="outline">
-                    <Printer className="h-4 w-4 mr-1" /> Print Color Chart
-                  </Button>
+                </div>
+
+                <div className="space-y-2 border-t pt-3">
+                  <Label className="text-sm font-semibold">Image Map</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const c = buildImageMapCanvas();
+                        if (c) {
+                          setImageMapUrl(c.toDataURL("image/png"));
+                          setImageMapOpen(true);
+                        }
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-1" /> View
+                    </Button>
+                    <Button variant="outline" onClick={downloadImageMap}>
+                      <Save className="h-4 w-4 mr-1" /> Save
+                    </Button>
+                    <Button variant="outline" onClick={printImageMap} className="col-span-2">
+                      <Printer className="h-4 w-4 mr-1" /> Print
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2 border-t pt-3">
+                  <Label className="text-sm font-semibold">Color Chart</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const c = buildColorChartCanvas();
+                        if (c) {
+                          setColorChartUrl(c.toDataURL("image/png"));
+                          setColorChartOpen(true);
+                        }
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-1" /> View
+                    </Button>
+                    <Button variant="outline" onClick={downloadColorChart}>
+                      <Save className="h-4 w-4 mr-1" /> Save
+                    </Button>
+                    <Button variant="outline" onClick={printColorChart} className="col-span-2">
+                      <Printer className="h-4 w-4 mr-1" /> Print
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </>
         )}
       </div>
+
+      {/* Main picture dialog */}
+      <Dialog open={mainOpen} onOpenChange={setMainOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="display text-2xl">
+              {showOriginal ? "Original Image" : "Stencil Preview"}
+            </DialogTitle>
+          </DialogHeader>
+          {(showOriginal ? originalUrl : previewUrl) && (
+            <img
+              src={(showOriginal ? originalUrl : previewUrl)!}
+              alt="Main picture"
+              className="w-full h-auto"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Image map view dialog */}
+      <Dialog open={imageMapOpen} onOpenChange={setImageMapOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="display text-2xl">Image Map</DialogTitle>
+          </DialogHeader>
+          {imageMapUrl && <img src={imageMapUrl} alt="Image map" className="w-full h-auto" />}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={downloadImageMap}>
+              <Save className="h-4 w-4 mr-1" /> Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Color chart view dialog */}
+      <Dialog open={colorChartOpen} onOpenChange={setColorChartOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="display text-2xl">Color Chart</DialogTitle>
+          </DialogHeader>
+          {colorChartUrl && <img src={colorChartUrl} alt="Color chart" className="w-full h-auto" />}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={downloadColorChart}>
+              <Save className="h-4 w-4 mr-1" /> Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Zoom dialog */}
       <Dialog open={zoomLayer !== null} onOpenChange={(o) => !o && setZoomLayer(null)}>
@@ -1047,7 +1166,8 @@ export function StencilMaker() {
         </DialogContent>
       </Dialog>
 
-      <div className="hidden">{markerCount}</div>
+
+      
 
     </div>
   );
