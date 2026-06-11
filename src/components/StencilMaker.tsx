@@ -1035,24 +1035,108 @@ export function StencilMaker() {
                   <Button onClick={() => downloadAll("svg")} variant="default">
                     <Download className="h-4 w-4 mr-1" /> All SVG (.zip)
                   </Button>
-                  <Button onClick={downloadImageMap} variant="outline">
-                    <Download className="h-4 w-4 mr-1" /> Image Map
-                  </Button>
-                  <Button onClick={downloadColorChart} variant="outline">
-                    <Download className="h-4 w-4 mr-1" /> Color Chart
-                  </Button>
-                  <Button onClick={printImageMap} variant="outline">
-                    <Printer className="h-4 w-4 mr-1" /> Print Image Map
-                  </Button>
-                  <Button onClick={printColorChart} variant="outline">
-                    <Printer className="h-4 w-4 mr-1" /> Print Color Chart
-                  </Button>
+                </div>
+
+                <div className="space-y-2 border-t pt-3">
+                  <Label className="text-sm font-semibold">Image Map</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const c = buildImageMapCanvas();
+                        if (c) {
+                          setImageMapUrl(c.toDataURL("image/png"));
+                          setImageMapOpen(true);
+                        }
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-1" /> View
+                    </Button>
+                    <Button variant="outline" onClick={downloadImageMap}>
+                      <Save className="h-4 w-4 mr-1" /> Save
+                    </Button>
+                    <Button variant="outline" onClick={printImageMap} className="col-span-2">
+                      <Printer className="h-4 w-4 mr-1" /> Print
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2 border-t pt-3">
+                  <Label className="text-sm font-semibold">Color Chart</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const c = buildColorChartCanvas();
+                        if (c) {
+                          setColorChartUrl(c.toDataURL("image/png"));
+                          setColorChartOpen(true);
+                        }
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-1" /> View
+                    </Button>
+                    <Button variant="outline" onClick={downloadColorChart}>
+                      <Save className="h-4 w-4 mr-1" /> Save
+                    </Button>
+                    <Button variant="outline" onClick={printColorChart} className="col-span-2">
+                      <Printer className="h-4 w-4 mr-1" /> Print
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </>
         )}
       </div>
+
+      {/* Main picture dialog */}
+      <Dialog open={mainOpen} onOpenChange={setMainOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="display text-2xl">
+              {showOriginal ? "Original Image" : "Stencil Preview"}
+            </DialogTitle>
+          </DialogHeader>
+          {(showOriginal ? originalUrl : previewUrl) && (
+            <img
+              src={(showOriginal ? originalUrl : previewUrl)!}
+              alt="Main picture"
+              className="w-full h-auto"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Image map view dialog */}
+      <Dialog open={imageMapOpen} onOpenChange={setImageMapOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="display text-2xl">Image Map</DialogTitle>
+          </DialogHeader>
+          {imageMapUrl && <img src={imageMapUrl} alt="Image map" className="w-full h-auto" />}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={downloadImageMap}>
+              <Save className="h-4 w-4 mr-1" /> Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Color chart view dialog */}
+      <Dialog open={colorChartOpen} onOpenChange={setColorChartOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="display text-2xl">Color Chart</DialogTitle>
+          </DialogHeader>
+          {colorChartUrl && <img src={colorChartUrl} alt="Color chart" className="w-full h-auto" />}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={downloadColorChart}>
+              <Save className="h-4 w-4 mr-1" /> Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Zoom dialog */}
       <Dialog open={zoomLayer !== null} onOpenChange={(o) => !o && setZoomLayer(null)}>
@@ -1081,6 +1165,7 @@ export function StencilMaker() {
           )}
         </DialogContent>
       </Dialog>
+
 
       
 
