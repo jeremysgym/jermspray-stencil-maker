@@ -557,9 +557,9 @@ export function StencilMaker() {
   const printCanvas = (c: HTMLCanvasElement, title: string) => {
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<html><head><title>${title}</title></head><body style="margin:0;padding:16px;text-align:center"><img src="${c.toDataURL("image/png")}" style="max-width:100%"/></body></html>`);
+    const url = c.toDataURL("image/png");
+    w.document.write(`<html><head><title>${title}</title></head><body style="margin:0;padding:16px;text-align:center"><img id="img" src="${url}" style="max-width:100%"/><script>var i=document.getElementById('img');function p(){setTimeout(function(){window.focus();window.print();},150);}if(i.complete)p();else i.onload=p;</script></body></html>`);
     w.document.close();
-    w.onload = () => w.print();
   };
   const printImageMap = () => {
     const c = buildImageMapCanvas();
