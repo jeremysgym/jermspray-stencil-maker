@@ -359,22 +359,12 @@ export function StencilMaker() {
         numLayers,
         bgRemovalEnabled ? mask ?? undefined : undefined,
       );
-      let lbls = result.labels;
-      if (cleanupEnabled && cleanupStrength > 0) {
-        const r = Math.max(1, Math.round(cleanupStrength));
-        const minArea = Math.round(workData.width * workData.height * (0.0005 * cleanupStrength + 0.0005));
-        lbls = cleanupLabels(lbls, workData.width, workData.height, result.palette.length, {
-          closeRadius: r,
-          openRadius: r,
-          minArea,
-        });
-      }
       setPalette(result.palette);
-      setLabels(lbls);
+      setLabels(result.labels);
       setHiddenLayers(new Set());
     }, 30);
     return () => clearTimeout(t);
-  }, [workData, numLayers, mask, bgRemovalEnabled, cleanupEnabled, cleanupStrength]);
+  }, [workData, numLayers, mask, bgRemovalEnabled]);
 
   // Preview rendering
   const previewUrl = useMemo(() => {
