@@ -869,6 +869,28 @@ export function StencilMaker() {
                   </Label>
                 </div>
 
+                <div className="space-y-2 border-t pt-3">
+                  <div className="flex items-center gap-3">
+                    <Switch id="clean" checked={cleanupEnabled} onCheckedChange={setCleanupEnabled} />
+                    <Label htmlFor="clean" className="cursor-pointer">
+                      Sharpen layers · remove noise & connect lines
+                    </Label>
+                  </div>
+                  {cleanupEnabled && (
+                    <div className="flex items-center gap-3">
+                      <Label className="min-w-[110px] text-xs">Strength</Label>
+                      <Slider
+                        value={[cleanupStrength]}
+                        min={1}
+                        max={5}
+                        step={1}
+                        onValueChange={(v) => setCleanupStrength(v[0])}
+                      />
+                      <span className="text-xs w-8 text-right">{cleanupStrength}</span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Width (px)</Label>
