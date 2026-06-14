@@ -289,6 +289,8 @@ export function StencilMaker() {
   const [bgColor, setBgColor] = useState("#ffffff");
   const [showOriginal, setShowOriginal] = useState(false);
   const [includeSilhouette, setIncludeSilhouette] = useState(true);
+  const [cleanupEnabled, setCleanupEnabled] = useState(true);
+  const [cleanupStrength, setCleanupStrength] = useState(2);
 
   // Size
   const [outWidth, setOutWidth] = useState(800);
