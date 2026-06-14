@@ -51,7 +51,6 @@ import {
   type RGB,
 } from "@/lib/stencil/quantize";
 import { detectAndRemoveBackground } from "@/lib/stencil/bg-removal";
-import { cleanupLabels } from "@/lib/stencil/cleanup";
 import { nameForHex } from "@/lib/stencil/color-name";
 
 function randomProjectName() {
@@ -218,7 +217,8 @@ function BgEditor({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+
         <DialogHeader>
           <DialogTitle className="display text-2xl">Remove Background</DialogTitle>
         </DialogHeader>
@@ -294,8 +294,6 @@ export function StencilMaker() {
   const [bgColor, setBgColor] = useState("#ffffff");
   const [showOriginal, setShowOriginal] = useState(false);
   const [includeSilhouette, setIncludeSilhouette] = useState(true);
-  const [cleanupEnabled, setCleanupEnabled] = useState(true);
-  const [cleanupStrength, setCleanupStrength] = useState(2);
 
   // Size
   const [outWidth, setOutWidth] = useState(800);
@@ -362,22 +360,12 @@ export function StencilMaker() {
         numLayers,
         bgRemovalEnabled ? mask ?? undefined : undefined,
       );
-      let lbls = result.labels;
-      if (cleanupEnabled && cleanupStrength > 0) {
-        const r = Math.max(1, Math.round(cleanupStrength));
-        const minArea = Math.round(workData.width * workData.height * (0.0005 * cleanupStrength + 0.0005));
-        lbls = cleanupLabels(lbls, workData.width, workData.height, result.palette.length, {
-          closeRadius: r,
-          openRadius: r,
-          minArea,
-        });
-      }
       setPalette(result.palette);
-      setLabels(lbls);
+      setLabels(result.labels);
       setHiddenLayers(new Set());
     }, 30);
     return () => clearTimeout(t);
-  }, [workData, numLayers, mask, bgRemovalEnabled, cleanupEnabled, cleanupStrength]);
+  }, [workData, numLayers, mask, bgRemovalEnabled]);
 
   // Preview rendering
   const previewUrl = useMemo(() => {
@@ -570,9 +558,9 @@ export function StencilMaker() {
   const printCanvas = (c: HTMLCanvasElement, title: string) => {
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<html><head><title>${title}</title></head><body style="margin:0;padding:16px;text-align:center"><img src="${c.toDataURL("image/png")}" style="max-width:100%"/></body></html>`);
+    const url = c.toDataURL("image/png");
+    w.document.write(`<html><head><title>${title}</title></head><body style="margin:0;padding:16px;text-align:center"><img id="img" src="${url}" style="max-width:100%"/><script>var i=document.getElementById('img');function p(){setTimeout(function(){window.focus();window.print();},150);}if(i.complete)p();else i.onload=p;</script></body></html>`);
     w.document.close();
-    w.onload = () => w.print();
   };
   const printImageMap = () => {
     const c = buildImageMapCanvas();
@@ -869,27 +857,6 @@ export function StencilMaker() {
                   </Label>
                 </div>
 
-                <div className="space-y-2 border-t pt-3">
-                  <div className="flex items-center gap-3">
-                    <Switch id="clean" checked={cleanupEnabled} onCheckedChange={setCleanupEnabled} />
-                    <Label htmlFor="clean" className="cursor-pointer">
-                      Sharpen layers · remove noise & connect lines
-                    </Label>
-                  </div>
-                  {cleanupEnabled && (
-                    <div className="flex items-center gap-3">
-                      <Label className="min-w-[110px] text-xs">Strength</Label>
-                      <Slider
-                        value={[cleanupStrength]}
-                        min={1}
-                        max={5}
-                        step={1}
-                        onValueChange={(v) => setCleanupStrength(v[0])}
-                      />
-                      <span className="text-xs w-8 text-right">{cleanupStrength}</span>
-                    </div>
-                  )}
-                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1132,7 +1099,7 @@ export function StencilMaker() {
 
       {/* Main picture dialog */}
       <Dialog open={mainOpen} onOpenChange={setMainOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="display text-2xl">
               {showOriginal ? "Original Image" : "Stencil Preview"}
@@ -1145,12 +1112,15 @@ export function StencilMaker() {
               className="w-full h-auto"
             />
           )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setMainOpen(false)}>Close</Button>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Image map view dialog */}
       <Dialog open={imageMapOpen} onOpenChange={setImageMapOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="display text-2xl">Image Map</DialogTitle>
           </DialogHeader>
@@ -1159,13 +1129,14 @@ export function StencilMaker() {
             <Button variant="outline" onClick={downloadImageMap}>
               <Save className="h-4 w-4 mr-1" /> Save
             </Button>
+            <Button variant="outline" onClick={() => setImageMapOpen(false)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Color chart view dialog */}
       <Dialog open={colorChartOpen} onOpenChange={setColorChartOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="display text-2xl">Color Chart</DialogTitle>
           </DialogHeader>
@@ -1174,13 +1145,14 @@ export function StencilMaker() {
             <Button variant="outline" onClick={downloadColorChart}>
               <Save className="h-4 w-4 mr-1" /> Save
             </Button>
+            <Button variant="outline" onClick={() => setColorChartOpen(false)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Zoom dialog */}
       <Dialog open={zoomLayer !== null} onOpenChange={(o) => !o && setZoomLayer(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="display text-2xl">
               {zoomLayer === -1 ? `Layer ${palette.length + 1} — Silhouette` : zoomLayer !== null ? `Layer ${zoomLayer + 1}` : ""}
@@ -1192,7 +1164,7 @@ export function StencilMaker() {
           {zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer] && (
             <div className="space-y-2">
               <img src={layerThumbs[zoomLayer].url} alt={`Layer ${zoomLayer + 1}`} className="w-full h-auto" />
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-block w-6 h-6 rounded border" style={{ background: rgbToHex(palette[zoomLayer]) }} />
                 <span className="font-semibold">{nameForHex(rgbToHex(palette[zoomLayer]))}</span>
                 <span className="text-muted-foreground">{rgbToHex(palette[zoomLayer]).toUpperCase()}</span>
@@ -1203,8 +1175,20 @@ export function StencilMaker() {
               </div>
             </div>
           )}
+          {zoomLayer === -1 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="ml-auto flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => downloadSilhouette("png")}>PNG</Button>
+                <Button size="sm" variant="outline" onClick={() => downloadSilhouette("svg")}>SVG</Button>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setZoomLayer(null)}>Close</Button>
+          </div>
         </DialogContent>
       </Dialog>
+
 
 
       
