@@ -51,6 +51,7 @@ import {
   type RGB,
 } from "@/lib/stencil/quantize";
 import { detectAndRemoveBackground } from "@/lib/stencil/bg-removal";
+import { cleanupLabels } from "@/lib/stencil/cleanup";
 import { nameForHex } from "@/lib/stencil/color-name";
 
 function randomProjectName() {
@@ -88,8 +89,13 @@ function downloadBlob(blob: Blob, filename: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
   a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 1000);
 }
 
 function drawMarkers(
@@ -288,6 +294,8 @@ export function StencilMaker() {
   const [bgColor, setBgColor] = useState("#ffffff");
   const [showOriginal, setShowOriginal] = useState(false);
   const [includeSilhouette, setIncludeSilhouette] = useState(true);
+  const [cleanupEnabled, setCleanupEnabled] = useState(true);
+  const [cleanupStrength, setCleanupStrength] = useState(2);
 
   // Size
   const [outWidth, setOutWidth] = useState(800);
@@ -354,12 +362,22 @@ export function StencilMaker() {
         numLayers,
         bgRemovalEnabled ? mask ?? undefined : undefined,
       );
+      let lbls = result.labels;
+      if (cleanupEnabled && cleanupStrength > 0) {
+        const r = Math.max(1, Math.round(cleanupStrength));
+        const minArea = Math.round(workData.width * workData.height * (0.0005 * cleanupStrength + 0.0005));
+        lbls = cleanupLabels(lbls, workData.width, workData.height, result.palette.length, {
+          closeRadius: r,
+          openRadius: r,
+          minArea,
+        });
+      }
       setPalette(result.palette);
-      setLabels(result.labels);
+      setLabels(lbls);
       setHiddenLayers(new Set());
     }, 30);
     return () => clearTimeout(t);
-  }, [workData, numLayers, mask, bgRemovalEnabled]);
+  }, [workData, numLayers, mask, bgRemovalEnabled, cleanupEnabled, cleanupStrength]);
 
   // Preview rendering
   const previewUrl = useMemo(() => {
@@ -849,6 +867,28 @@ export function StencilMaker() {
                   <Label htmlFor="silh" className="cursor-pointer">
                     Add full silhouette layer (not blended into preview)
                   </Label>
+                </div>
+
+                <div className="space-y-2 border-t pt-3">
+                  <div className="flex items-center gap-3">
+                    <Switch id="clean" checked={cleanupEnabled} onCheckedChange={setCleanupEnabled} />
+                    <Label htmlFor="clean" className="cursor-pointer">
+                      Sharpen layers · remove noise & connect lines
+                    </Label>
+                  </div>
+                  {cleanupEnabled && (
+                    <div className="flex items-center gap-3">
+                      <Label className="min-w-[110px] text-xs">Strength</Label>
+                      <Slider
+                        value={[cleanupStrength]}
+                        min={1}
+                        max={5}
+                        step={1}
+                        onValueChange={(v) => setCleanupStrength(v[0])}
+                      />
+                      <span className="text-xs w-8 text-right">{cleanupStrength}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
