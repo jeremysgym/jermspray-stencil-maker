@@ -1099,7 +1099,7 @@ export function StencilMaker() {
 
       {/* Main picture dialog */}
       <Dialog open={mainOpen} onOpenChange={setMainOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="display text-2xl">
               {showOriginal ? "Original Image" : "Stencil Preview"}
@@ -1112,12 +1112,15 @@ export function StencilMaker() {
               className="w-full h-auto"
             />
           )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setMainOpen(false)}>Close</Button>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Image map view dialog */}
       <Dialog open={imageMapOpen} onOpenChange={setImageMapOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="display text-2xl">Image Map</DialogTitle>
           </DialogHeader>
@@ -1126,13 +1129,14 @@ export function StencilMaker() {
             <Button variant="outline" onClick={downloadImageMap}>
               <Save className="h-4 w-4 mr-1" /> Save
             </Button>
+            <Button variant="outline" onClick={() => setImageMapOpen(false)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Color chart view dialog */}
       <Dialog open={colorChartOpen} onOpenChange={setColorChartOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="display text-2xl">Color Chart</DialogTitle>
           </DialogHeader>
@@ -1141,13 +1145,14 @@ export function StencilMaker() {
             <Button variant="outline" onClick={downloadColorChart}>
               <Save className="h-4 w-4 mr-1" /> Save
             </Button>
+            <Button variant="outline" onClick={() => setColorChartOpen(false)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Zoom dialog */}
       <Dialog open={zoomLayer !== null} onOpenChange={(o) => !o && setZoomLayer(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="display text-2xl">
               {zoomLayer === -1 ? `Layer ${palette.length + 1} — Silhouette` : zoomLayer !== null ? `Layer ${zoomLayer + 1}` : ""}
@@ -1159,7 +1164,7 @@ export function StencilMaker() {
           {zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer] && (
             <div className="space-y-2">
               <img src={layerThumbs[zoomLayer].url} alt={`Layer ${zoomLayer + 1}`} className="w-full h-auto" />
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-block w-6 h-6 rounded border" style={{ background: rgbToHex(palette[zoomLayer]) }} />
                 <span className="font-semibold">{nameForHex(rgbToHex(palette[zoomLayer]))}</span>
                 <span className="text-muted-foreground">{rgbToHex(palette[zoomLayer]).toUpperCase()}</span>
@@ -1170,8 +1175,20 @@ export function StencilMaker() {
               </div>
             </div>
           )}
+          {zoomLayer === -1 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="ml-auto flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => downloadSilhouette("png")}>PNG</Button>
+                <Button size="sm" variant="outline" onClick={() => downloadSilhouette("svg")}>SVG</Button>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setZoomLayer(null)}>Close</Button>
+          </div>
         </DialogContent>
       </Dialog>
+
 
 
       
