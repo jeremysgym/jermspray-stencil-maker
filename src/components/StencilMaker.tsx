@@ -51,7 +51,6 @@ import {
   type RGB,
 } from "@/lib/stencil/quantize";
 import { detectAndRemoveBackground } from "@/lib/stencil/bg-removal";
-import { cleanupLabels } from "@/lib/stencil/cleanup";
 import { nameForHex } from "@/lib/stencil/color-name";
 
 function randomProjectName() {
