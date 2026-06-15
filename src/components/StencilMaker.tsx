@@ -1274,7 +1274,7 @@ export function StencilMaker() {
             </div>
           )}
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline">Tip: use ← → arrows to switch layers</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">Tip: use ← → arrows or swipe to switch layers</span>
             <div className="flex gap-2 ml-auto">
               <Button
                 size="sm"
