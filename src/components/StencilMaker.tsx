@@ -1147,19 +1147,21 @@ export function StencilMaker() {
 
       {/* Main picture dialog */}
       <Dialog open={mainOpen} onOpenChange={setMainOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="display text-2xl">
               {showOriginal ? "Original Image" : "Stencil Preview"}
             </DialogTitle>
           </DialogHeader>
-          {(showOriginal ? originalUrl : previewUrl) && (
-            <img
-              src={(showOriginal ? originalUrl : previewUrl)!}
-              alt="Main picture"
-              className="w-full h-auto"
-            />
-          )}
+          <div className="flex-1 min-h-0 overflow-auto">
+            {(showOriginal ? originalUrl : previewUrl) && (
+              <img
+                src={(showOriginal ? originalUrl : previewUrl)!}
+                alt="Main picture"
+                className="w-full h-auto"
+              />
+            )}
+          </div>
           <div className="flex justify-end">
             <Button variant="outline" onClick={() => setMainOpen(false)}>Close</Button>
           </div>
@@ -1168,12 +1170,17 @@ export function StencilMaker() {
 
       {/* Image map view dialog */}
       <Dialog open={imageMapOpen} onOpenChange={setImageMapOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="display text-2xl">Image Map</DialogTitle>
           </DialogHeader>
-          {imageMapUrl && <img src={imageMapUrl} alt="Image map" className="w-full h-auto" />}
+          <div className="flex-1 min-h-0 overflow-auto">
+            {imageMapUrl && <img src={imageMapUrl} alt="Image map" className="w-full h-auto" />}
+          </div>
           <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={printImageMap}>
+              <Printer className="h-4 w-4 mr-1" /> Print
+            </Button>
             <Button variant="outline" onClick={downloadImageMap}>
               <Save className="h-4 w-4 mr-1" /> Save
             </Button>
@@ -1184,12 +1191,17 @@ export function StencilMaker() {
 
       {/* Color chart view dialog */}
       <Dialog open={colorChartOpen} onOpenChange={setColorChartOpen}>
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[85vh] flex flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="display text-2xl">Color Chart</DialogTitle>
           </DialogHeader>
-          {colorChartUrl && <img src={colorChartUrl} alt="Color chart" className="w-full h-auto" />}
+          <div className="flex-1 min-h-0 overflow-auto">
+            {colorChartUrl && <img src={colorChartUrl} alt="Color chart" className="w-full h-auto" />}
+          </div>
           <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={printColorChart}>
+              <Printer className="h-4 w-4 mr-1" /> Print
+            </Button>
             <Button variant="outline" onClick={downloadColorChart}>
               <Save className="h-4 w-4 mr-1" /> Save
             </Button>
@@ -1200,26 +1212,28 @@ export function StencilMaker() {
 
       {/* Zoom dialog */}
       <Dialog open={zoomLayer !== null} onOpenChange={(o) => !o && setZoomLayer(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="display text-2xl">
               {zoomLayer === -1 ? `Layer ${palette.length + 1} — Silhouette` : zoomLayer !== null ? `Layer ${zoomLayer + 1}` : ""}
             </DialogTitle>
           </DialogHeader>
-          {zoomLayer === -1 && silhouetteUrl && (
-            <img src={silhouetteUrl} alt="Silhouette" className="w-full h-auto" />
-          )}
-          {zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer] && (
-            <div className="space-y-2">
+          <div className="flex-1 min-h-0 overflow-auto">
+            {zoomLayer === -1 && silhouetteUrl && (
+              <img src={silhouetteUrl} alt="Silhouette" className="w-full h-auto" />
+            )}
+            {zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer] && (
               <img src={layerThumbs[zoomLayer].url} alt={`Layer ${zoomLayer + 1}`} className="w-full h-auto" />
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-block w-6 h-6 rounded border" style={{ background: rgbToHex(palette[zoomLayer]) }} />
-                <span className="font-semibold">{nameForHex(rgbToHex(palette[zoomLayer]))}</span>
-                <span className="text-muted-foreground">{rgbToHex(palette[zoomLayer]).toUpperCase()}</span>
-                <div className="ml-auto flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => downloadLayer(zoomLayer, "png")}>PNG</Button>
-                  <Button size="sm" variant="outline" onClick={() => downloadLayer(zoomLayer, "svg")}>SVG</Button>
-                </div>
+            )}
+          </div>
+          {zoomLayer !== null && zoomLayer >= 0 && palette[zoomLayer] && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-block w-6 h-6 rounded border" style={{ background: rgbToHex(palette[zoomLayer]) }} />
+              <span className="font-semibold">{nameForHex(rgbToHex(palette[zoomLayer]))}</span>
+              <span className="text-muted-foreground">{rgbToHex(palette[zoomLayer]).toUpperCase()}</span>
+              <div className="ml-auto flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => downloadLayer(zoomLayer, "png")}>PNG</Button>
+                <Button size="sm" variant="outline" onClick={() => downloadLayer(zoomLayer, "svg")}>SVG</Button>
               </div>
             </div>
           )}
@@ -1231,11 +1245,41 @@ export function StencilMaker() {
               </div>
             </div>
           )}
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={() => setZoomLayer(null)}>Close</Button>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">Tip: use ← → arrows to switch layers</span>
+            <div className="flex gap-2 ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const order: number[] = palette.map((_, i) => i);
+                  if (includeSilhouette) order.push(-1);
+                  if (order.length === 0 || zoomLayer === null) return;
+                  const cur = order.indexOf(zoomLayer);
+                  setZoomLayer(order[(cur - 1 + order.length) % order.length]);
+                }}
+              >
+                Prev
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const order: number[] = palette.map((_, i) => i);
+                  if (includeSilhouette) order.push(-1);
+                  if (order.length === 0 || zoomLayer === null) return;
+                  const cur = order.indexOf(zoomLayer);
+                  setZoomLayer(order[(cur + 1) % order.length]);
+                }}
+              >
+                Next
+              </Button>
+              <Button variant="outline" onClick={() => setZoomLayer(null)}>Close</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
+
 
 
 
