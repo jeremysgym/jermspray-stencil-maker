@@ -318,6 +318,26 @@ export function StencilMaker() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const projectLoadRef = useRef<HTMLInputElement>(null);
 
+  // Keyboard navigation between layers while the zoom dialog is open.
+  // Arrow Right/Down -> next, Arrow Left/Up -> previous. Silhouette (-1) is last.
+  // Esc closes via Radix Dialog's built-in handler.
+  useEffect(() => {
+    if (zoomLayer === null) return;
+    const handler = (e: KeyboardEvent) => {
+      if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"].includes(e.key)) return;
+      const order: number[] = palette.map((_, i) => i);
+      if (includeSilhouette) order.push(-1);
+      if (order.length === 0) return;
+      const cur = order.indexOf(zoomLayer);
+      if (cur === -1) return;
+      e.preventDefault();
+      const dir = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1;
+      setZoomLayer(order[(cur + dir + order.length) % order.length]);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [zoomLayer, palette, includeSilhouette]);
+
   // --- Load image ---
   const loadFile = useCallback((file: File) => {
     const url = URL.createObjectURL(file);
