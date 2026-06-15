@@ -1242,12 +1242,16 @@ export function StencilMaker() {
               {zoomLayer === -1 ? `Layer ${palette.length + 1} — Silhouette` : zoomLayer !== null ? `Layer ${zoomLayer + 1}` : ""}
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto">
+          <div
+            className="flex-1 min-h-0 overflow-auto touch-pan-y"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
             {zoomLayer === -1 && silhouetteUrl && (
-              <img src={silhouetteUrl} alt="Silhouette" className="w-full h-auto" />
+              <img src={silhouetteUrl} alt="Silhouette" className="w-full h-auto" draggable={false} />
             )}
             {zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer] && (
-              <img src={layerThumbs[zoomLayer].url} alt={`Layer ${zoomLayer + 1}`} className="w-full h-auto" />
+              <img src={layerThumbs[zoomLayer].url} alt={`Layer ${zoomLayer + 1}`} className="w-full h-auto" draggable={false} />
             )}
           </div>
           {zoomLayer !== null && zoomLayer >= 0 && palette[zoomLayer] && (
