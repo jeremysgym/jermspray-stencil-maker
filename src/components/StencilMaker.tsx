@@ -556,11 +556,40 @@ export function StencilMaker() {
   };
 
   const printCanvas = (c: HTMLCanvasElement, title: string) => {
-    const w = window.open("", "_blank");
-    if (!w) return;
-    const url = c.toDataURL("image/png");
-    w.document.write(`<html><head><title>${title}</title></head><body style="margin:0;padding:16px;text-align:center"><img id="img" src="${url}" style="max-width:100%"/><script>var i=document.getElementById('img');function p(){setTimeout(function(){window.focus();window.print();},150);}if(i.complete)p();else i.onload=p;</script></body></html>`);
-    w.document.close();
+    c.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+<style>
+  @page { size: auto; margin: 12mm; }
+  html,body { margin:0; padding:0; background:#fff; }
+  .wrap { width:100%; text-align:center; padding:12px; box-sizing:border-box; }
+  img { display:block; margin:0 auto; max-width:100%; height:auto; image-rendering: -webkit-optimize-contrast; }
+  @media print {
+    .wrap { padding:0; }
+    img { max-width:100%; max-height:100vh; page-break-inside: avoid; }
+  }
+</style></head><body><div class="wrap"><img id="i" src="${url}" alt="${title}"/></div>
+<script>
+  (function(){
+    var img=document.getElementById('i');
+    function go(){ try{ window.focus(); window.print(); }catch(e){} }
+    function after(){ setTimeout(go, 250); }
+    if(img.complete && img.naturalWidth) after();
+    else { img.onload = after; img.onerror = after; }
+    window.onafterprint = function(){ setTimeout(function(){ URL.revokeObjectURL('${url}'); }, 500); };
+  })();
+</script></body></html>`;
+      const w = window.open("", "_blank");
+      if (!w) {
+        // Popup blocked — fallback: open the image directly so user can print/save.
+        window.open(url, "_blank");
+        return;
+      }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+    }, "image/png");
   };
   const printImageMap = () => {
     const c = buildImageMapCanvas();
