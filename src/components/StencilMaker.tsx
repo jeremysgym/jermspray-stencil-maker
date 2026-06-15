@@ -217,12 +217,11 @@ function BgEditor({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-3 p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="display text-2xl">Remove Background</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             variant={mode === "erase" ? "default" : "outline"}
             size="sm"
@@ -242,10 +241,10 @@ function BgEditor({
             <Slider value={[brush]} min={2} max={120} step={1} onValueChange={(v) => setBrush(v[0])} />
           </div>
         </div>
-        <div className="bg-muted rounded-md overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto bg-muted rounded-md">
           <canvas
             ref={canvasRef}
-            className="w-full h-auto touch-none cursor-crosshair"
+            className="w-full h-auto touch-none cursor-crosshair block"
             onPointerDown={(e) => {
               (e.target as HTMLElement).setPointerCapture(e.pointerId);
               setDrawing(true);
@@ -255,8 +254,8 @@ function BgEditor({
             onPointerUp={() => setDrawing(false)}
           />
         </div>
-        <div className="flex justify-end gap-2 mt-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
           <Button
             onClick={() => {
               if (maskRef.current) onApply(maskRef.current.slice());
