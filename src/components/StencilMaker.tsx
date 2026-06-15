@@ -316,6 +316,8 @@ export function StencilMaker() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const projectLoadRef = useRef<HTMLInputElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
   // Keyboard navigation between layers while the zoom dialog is open.
   // Arrow Right/Down -> next, Arrow Left/Up -> previous. Silhouette (-1) is last.
@@ -726,6 +728,28 @@ export function StencilMaker() {
       }
     };
     reader.readAsText(file);
+  };
+
+  // --- Touch swipe navigation in zoom dialog ---
+  const SWIPE_THRESHOLD = 50;
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.changedTouches[0].screenX;
+    touchStartY.current = e.changedTouches[0].screenY;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const endX = e.changedTouches[0].screenX;
+    const endY = e.changedTouches[0].screenY;
+    const dx = endX - touchStartX.current;
+    const dy = endY - touchStartY.current;
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
+    e.preventDefault();
+    const order: number[] = palette.map((_, i) => i);
+    if (includeSilhouette) order.push(-1);
+    if (order.length === 0 || zoomLayer === null) return;
+    const cur = order.indexOf(zoomLayer);
+    if (cur === -1) return;
+    const dir = dx > 0 ? -1 : 1; // swipe right = prev, swipe left = next
+    setZoomLayer(order[(cur + dir + order.length) % order.length]);
   };
 
   // ----------------------------------------------------------------------
@@ -1218,12 +1242,16 @@ export function StencilMaker() {
               {zoomLayer === -1 ? `Layer ${palette.length + 1} — Silhouette` : zoomLayer !== null ? `Layer ${zoomLayer + 1}` : ""}
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto">
+          <div
+            className="flex-1 min-h-0 overflow-auto touch-pan-y"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
             {zoomLayer === -1 && silhouetteUrl && (
-              <img src={silhouetteUrl} alt="Silhouette" className="w-full h-auto" />
+              <img src={silhouetteUrl} alt="Silhouette" className="w-full h-auto" draggable={false} />
             )}
             {zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer] && (
-              <img src={layerThumbs[zoomLayer].url} alt={`Layer ${zoomLayer + 1}`} className="w-full h-auto" />
+              <img src={layerThumbs[zoomLayer].url} alt={`Layer ${zoomLayer + 1}`} className="w-full h-auto" draggable={false} />
             )}
           </div>
           {zoomLayer !== null && zoomLayer >= 0 && palette[zoomLayer] && (
@@ -1246,7 +1274,7 @@ export function StencilMaker() {
             </div>
           )}
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline">Tip: use ← → arrows to switch layers</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">Tip: use ← → arrows or swipe to switch layers</span>
             <div className="flex gap-2 ml-auto">
               <Button
                 size="sm"
