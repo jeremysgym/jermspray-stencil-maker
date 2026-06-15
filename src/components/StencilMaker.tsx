@@ -217,12 +217,11 @@ function BgEditor({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-3 p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="display text-2xl">Remove Background</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             variant={mode === "erase" ? "default" : "outline"}
             size="sm"
@@ -242,10 +241,10 @@ function BgEditor({
             <Slider value={[brush]} min={2} max={120} step={1} onValueChange={(v) => setBrush(v[0])} />
           </div>
         </div>
-        <div className="bg-muted rounded-md overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto bg-muted rounded-md">
           <canvas
             ref={canvasRef}
-            className="w-full h-auto touch-none cursor-crosshair"
+            className="w-full h-auto touch-none cursor-crosshair block"
             onPointerDown={(e) => {
               (e.target as HTMLElement).setPointerCapture(e.pointerId);
               setDrawing(true);
@@ -255,8 +254,8 @@ function BgEditor({
             onPointerUp={() => setDrawing(false)}
           />
         </div>
-        <div className="flex justify-end gap-2 mt-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
           <Button
             onClick={() => {
               if (maskRef.current) onApply(maskRef.current.slice());
@@ -317,6 +316,26 @@ export function StencilMaker() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const projectLoadRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard navigation between layers while the zoom dialog is open.
+  // Arrow Right/Down -> next, Arrow Left/Up -> previous. Silhouette (-1) is last.
+  // Esc closes via Radix Dialog's built-in handler.
+  useEffect(() => {
+    if (zoomLayer === null) return;
+    const handler = (e: KeyboardEvent) => {
+      if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"].includes(e.key)) return;
+      const order: number[] = palette.map((_, i) => i);
+      if (includeSilhouette) order.push(-1);
+      if (order.length === 0) return;
+      const cur = order.indexOf(zoomLayer);
+      if (cur === -1) return;
+      e.preventDefault();
+      const dir = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1;
+      setZoomLayer(order[(cur + dir + order.length) % order.length]);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [zoomLayer, palette, includeSilhouette]);
 
   // --- Load image ---
   const loadFile = useCallback((file: File) => {
@@ -556,11 +575,40 @@ export function StencilMaker() {
   };
 
   const printCanvas = (c: HTMLCanvasElement, title: string) => {
-    const w = window.open("", "_blank");
-    if (!w) return;
-    const url = c.toDataURL("image/png");
-    w.document.write(`<html><head><title>${title}</title></head><body style="margin:0;padding:16px;text-align:center"><img id="img" src="${url}" style="max-width:100%"/><script>var i=document.getElementById('img');function p(){setTimeout(function(){window.focus();window.print();},150);}if(i.complete)p();else i.onload=p;</script></body></html>`);
-    w.document.close();
+    c.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+<style>
+  @page { size: auto; margin: 12mm; }
+  html,body { margin:0; padding:0; background:#fff; }
+  .wrap { width:100%; text-align:center; padding:12px; box-sizing:border-box; }
+  img { display:block; margin:0 auto; max-width:100%; height:auto; image-rendering: -webkit-optimize-contrast; }
+  @media print {
+    .wrap { padding:0; }
+    img { max-width:100%; max-height:100vh; page-break-inside: avoid; }
+  }
+</style></head><body><div class="wrap"><img id="i" src="${url}" alt="${title}"/></div>
+<script>
+  (function(){
+    var img=document.getElementById('i');
+    function go(){ try{ window.focus(); window.print(); }catch(e){} }
+    function after(){ setTimeout(go, 250); }
+    if(img.complete && img.naturalWidth) after();
+    else { img.onload = after; img.onerror = after; }
+    window.onafterprint = function(){ setTimeout(function(){ URL.revokeObjectURL('${url}'); }, 500); };
+  })();
+</script></body></html>`;
+      const w = window.open("", "_blank");
+      if (!w) {
+        // Popup blocked — fallback: open the image directly so user can print/save.
+        window.open(url, "_blank");
+        return;
+      }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+    }, "image/png");
   };
   const printImageMap = () => {
     const c = buildImageMapCanvas();
@@ -1099,19 +1147,21 @@ export function StencilMaker() {
 
       {/* Main picture dialog */}
       <Dialog open={mainOpen} onOpenChange={setMainOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="display text-2xl">
               {showOriginal ? "Original Image" : "Stencil Preview"}
             </DialogTitle>
           </DialogHeader>
-          {(showOriginal ? originalUrl : previewUrl) && (
-            <img
-              src={(showOriginal ? originalUrl : previewUrl)!}
-              alt="Main picture"
-              className="w-full h-auto"
-            />
-          )}
+          <div className="flex-1 min-h-0 overflow-auto">
+            {(showOriginal ? originalUrl : previewUrl) && (
+              <img
+                src={(showOriginal ? originalUrl : previewUrl)!}
+                alt="Main picture"
+                className="w-full h-auto"
+              />
+            )}
+          </div>
           <div className="flex justify-end">
             <Button variant="outline" onClick={() => setMainOpen(false)}>Close</Button>
           </div>
@@ -1120,12 +1170,17 @@ export function StencilMaker() {
 
       {/* Image map view dialog */}
       <Dialog open={imageMapOpen} onOpenChange={setImageMapOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="display text-2xl">Image Map</DialogTitle>
           </DialogHeader>
-          {imageMapUrl && <img src={imageMapUrl} alt="Image map" className="w-full h-auto" />}
+          <div className="flex-1 min-h-0 overflow-auto">
+            {imageMapUrl && <img src={imageMapUrl} alt="Image map" className="w-full h-auto" />}
+          </div>
           <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={printImageMap}>
+              <Printer className="h-4 w-4 mr-1" /> Print
+            </Button>
             <Button variant="outline" onClick={downloadImageMap}>
               <Save className="h-4 w-4 mr-1" /> Save
             </Button>
@@ -1136,12 +1191,17 @@ export function StencilMaker() {
 
       {/* Color chart view dialog */}
       <Dialog open={colorChartOpen} onOpenChange={setColorChartOpen}>
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[85vh] flex flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="display text-2xl">Color Chart</DialogTitle>
           </DialogHeader>
-          {colorChartUrl && <img src={colorChartUrl} alt="Color chart" className="w-full h-auto" />}
+          <div className="flex-1 min-h-0 overflow-auto">
+            {colorChartUrl && <img src={colorChartUrl} alt="Color chart" className="w-full h-auto" />}
+          </div>
           <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={printColorChart}>
+              <Printer className="h-4 w-4 mr-1" /> Print
+            </Button>
             <Button variant="outline" onClick={downloadColorChart}>
               <Save className="h-4 w-4 mr-1" /> Save
             </Button>
@@ -1152,26 +1212,28 @@ export function StencilMaker() {
 
       {/* Zoom dialog */}
       <Dialog open={zoomLayer !== null} onOpenChange={(o) => !o && setZoomLayer(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="display text-2xl">
               {zoomLayer === -1 ? `Layer ${palette.length + 1} — Silhouette` : zoomLayer !== null ? `Layer ${zoomLayer + 1}` : ""}
             </DialogTitle>
           </DialogHeader>
-          {zoomLayer === -1 && silhouetteUrl && (
-            <img src={silhouetteUrl} alt="Silhouette" className="w-full h-auto" />
-          )}
-          {zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer] && (
-            <div className="space-y-2">
+          <div className="flex-1 min-h-0 overflow-auto">
+            {zoomLayer === -1 && silhouetteUrl && (
+              <img src={silhouetteUrl} alt="Silhouette" className="w-full h-auto" />
+            )}
+            {zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer] && (
               <img src={layerThumbs[zoomLayer].url} alt={`Layer ${zoomLayer + 1}`} className="w-full h-auto" />
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-block w-6 h-6 rounded border" style={{ background: rgbToHex(palette[zoomLayer]) }} />
-                <span className="font-semibold">{nameForHex(rgbToHex(palette[zoomLayer]))}</span>
-                <span className="text-muted-foreground">{rgbToHex(palette[zoomLayer]).toUpperCase()}</span>
-                <div className="ml-auto flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => downloadLayer(zoomLayer, "png")}>PNG</Button>
-                  <Button size="sm" variant="outline" onClick={() => downloadLayer(zoomLayer, "svg")}>SVG</Button>
-                </div>
+            )}
+          </div>
+          {zoomLayer !== null && zoomLayer >= 0 && palette[zoomLayer] && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-block w-6 h-6 rounded border" style={{ background: rgbToHex(palette[zoomLayer]) }} />
+              <span className="font-semibold">{nameForHex(rgbToHex(palette[zoomLayer]))}</span>
+              <span className="text-muted-foreground">{rgbToHex(palette[zoomLayer]).toUpperCase()}</span>
+              <div className="ml-auto flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => downloadLayer(zoomLayer, "png")}>PNG</Button>
+                <Button size="sm" variant="outline" onClick={() => downloadLayer(zoomLayer, "svg")}>SVG</Button>
               </div>
             </div>
           )}
@@ -1183,11 +1245,41 @@ export function StencilMaker() {
               </div>
             </div>
           )}
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={() => setZoomLayer(null)}>Close</Button>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">Tip: use ← → arrows to switch layers</span>
+            <div className="flex gap-2 ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const order: number[] = palette.map((_, i) => i);
+                  if (includeSilhouette) order.push(-1);
+                  if (order.length === 0 || zoomLayer === null) return;
+                  const cur = order.indexOf(zoomLayer);
+                  setZoomLayer(order[(cur - 1 + order.length) % order.length]);
+                }}
+              >
+                Prev
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const order: number[] = palette.map((_, i) => i);
+                  if (includeSilhouette) order.push(-1);
+                  if (order.length === 0 || zoomLayer === null) return;
+                  const cur = order.indexOf(zoomLayer);
+                  setZoomLayer(order[(cur + 1) % order.length]);
+                }}
+              >
+                Next
+              </Button>
+              <Button variant="outline" onClick={() => setZoomLayer(null)}>Close</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
+
 
 
 
