@@ -316,6 +316,8 @@ export function StencilMaker() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const projectLoadRef = useRef<HTMLInputElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
   // Keyboard navigation between layers while the zoom dialog is open.
   // Arrow Right/Down -> next, Arrow Left/Up -> previous. Silhouette (-1) is last.
