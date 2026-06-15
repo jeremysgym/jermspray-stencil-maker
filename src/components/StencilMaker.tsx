@@ -730,6 +730,28 @@ export function StencilMaker() {
     reader.readAsText(file);
   };
 
+  // --- Touch swipe navigation in zoom dialog ---
+  const SWIPE_THRESHOLD = 50;
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.changedTouches[0].screenX;
+    touchStartY.current = e.changedTouches[0].screenY;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const endX = e.changedTouches[0].screenX;
+    const endY = e.changedTouches[0].screenY;
+    const dx = endX - touchStartX.current;
+    const dy = endY - touchStartY.current;
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
+    e.preventDefault();
+    const order: number[] = palette.map((_, i) => i);
+    if (includeSilhouette) order.push(-1);
+    if (order.length === 0 || zoomLayer === null) return;
+    const cur = order.indexOf(zoomLayer);
+    if (cur === -1) return;
+    const dir = dx > 0 ? -1 : 1; // swipe right = prev, swipe left = next
+    setZoomLayer(order[(cur + dir + order.length) % order.length]);
+  };
+
   // ----------------------------------------------------------------------
   return (
     <div className="min-h-screen pb-16">
