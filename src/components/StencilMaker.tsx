@@ -152,7 +152,9 @@ function BgEditor({
     baseRef.current = source;
     const mask = detectAndRemoveBackground(source.data, source.width, source.height, 36);
     maskRef.current = mask;
-    redraw();
+    // Wait a frame so the dialog content is mounted before drawing.
+    const raf = requestAnimationFrame(() => redraw());
+    return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, source]);
 
