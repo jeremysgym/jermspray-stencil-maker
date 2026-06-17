@@ -245,10 +245,10 @@ function BgEditor({
             <Slider value={[brush]} min={2} max={120} step={1} onValueChange={(v) => setBrush(v[0])} />
           </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-auto bg-muted rounded-md">
+        <div className="flex-1 min-h-0 overflow-auto bg-muted rounded-md flex items-center justify-center p-2">
           <canvas
             ref={canvasRef}
-            className="w-full h-auto touch-none cursor-crosshair block"
+            className="max-w-full max-h-[65vh] w-auto h-auto touch-none cursor-crosshair block object-contain"
             onPointerDown={(e) => {
               (e.target as HTMLElement).setPointerCapture(e.pointerId);
               setDrawing(true);
