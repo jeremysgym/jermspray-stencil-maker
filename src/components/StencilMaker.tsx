@@ -659,25 +659,30 @@ export function StencilMaker() {
     if (!workData || !labels) return;
     const zip = new JSZip();
     for (let i = 0; i < palette.length; i++) {
-      const img = renderLayerIsolated(labels, palette, workData.width, workData.height, i, hexToRgb(bgColor));
-      const c = scaleToOutput(img);
       if (format === "png") {
+        const img = renderLayerIsolated(labels, palette, workData.width, workData.height, i, hexToRgb(bgColor));
+        const c = scaleToOutput(img);
         const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
         zip.file(`layer-${String(i + 1).padStart(2, "0")}.png`, blob);
       } else {
-        const svg = svgWrapImage(c.width, c.height, c.toDataURL("image/png"));
+        const scaled = buildIsolatedScaledImageData(i);
+        if (!scaled) continue;
+        const svg = traceLayerToSvg(scaled, palette[i]);
         zip.file(`layer-${String(i + 1).padStart(2, "0")}.svg`, svg);
       }
     }
     if (includeSilhouette) {
-      const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], hexToRgb(bgColor));
-      const c = scaleToOutput(img);
       if (format === "png") {
+        const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], hexToRgb(bgColor));
+        const c = scaleToOutput(img);
         const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
         zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.png`, blob);
       } else {
-        const svg = svgWrapImage(c.width, c.height, c.toDataURL("image/png"));
-        zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+        const scaled = buildSilhouetteScaledImageData();
+        if (scaled) {
+          const svg = traceSilhouetteToSvg(scaled);
+          zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+        }
       }
     }
     const map = buildImageMapCanvas();
