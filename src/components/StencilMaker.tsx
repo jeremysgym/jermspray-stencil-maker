@@ -443,26 +443,58 @@ export function StencilMaker() {
     return c;
   };
 
+  // Render an isolated layer at output resolution with a transparent background
+  // so it can be vector-traced cleanly (Cricut / Silhouette friendly).
+  const buildIsolatedScaledImageData = (layerIdx: number): ImageData | null => {
+    if (!workData || !labels) return null;
+    const img = renderLayerIsolated(labels, palette, workData.width, workData.height, layerIdx, null);
+    const src = imageDataToCanvas(img);
+    const c = document.createElement("canvas");
+    c.width = outWidth;
+    c.height = outHeight;
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(src, 0, 0, outWidth, outHeight);
+    return ctx.getImageData(0, 0, outWidth, outHeight);
+  };
+
+  const buildSilhouetteScaledImageData = (): ImageData | null => {
+    if (!workData || !labels) return null;
+    const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], null);
+    const src = imageDataToCanvas(img);
+    const c = document.createElement("canvas");
+    c.width = outWidth;
+    c.height = outHeight;
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(src, 0, 0, outWidth, outHeight);
+    return ctx.getImageData(0, 0, outWidth, outHeight);
+  };
+
   const downloadLayer = async (layerIdx: number, format: "png" | "svg") => {
     const img = buildLayerImageData(layerIdx, true);
     if (!img) return;
-    const c = scaleToOutput(img);
     if (format === "png") {
+      const c = scaleToOutput(img);
       c.toBlob((b) => b && downloadBlob(b, `${projectName}-layer-${layerIdx + 1}.png`));
     } else {
-      const svg = svgWrapImage(c.width, c.height, c.toDataURL("image/png"));
+      const scaled = buildIsolatedScaledImageData(layerIdx);
+      if (!scaled) return;
+      const svg = traceLayerToSvg(scaled, palette[layerIdx]);
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-layer-${layerIdx + 1}.svg`);
     }
   };
 
   const downloadSilhouette = async (format: "png" | "svg") => {
     if (!workData || !labels) return;
-    const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], hexToRgb(bgColor));
-    const c = scaleToOutput(img);
     if (format === "png") {
+      const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], hexToRgb(bgColor));
+      const c = scaleToOutput(img);
       c.toBlob((b) => b && downloadBlob(b, `${projectName}-silhouette.png`));
     } else {
-      const svg = svgWrapImage(c.width, c.height, c.toDataURL("image/png"));
+      const scaled = buildSilhouetteScaledImageData();
+      if (!scaled) return;
+      const svg = traceSilhouetteToSvg(scaled);
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-silhouette.svg`);
     }
   };
