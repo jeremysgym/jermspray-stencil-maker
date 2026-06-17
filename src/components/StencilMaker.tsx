@@ -52,6 +52,8 @@ import {
 } from "@/lib/stencil/quantize";
 import { detectAndRemoveBackground } from "@/lib/stencil/bg-removal";
 import { nameForHex } from "@/lib/stencil/color-name";
+import { traceLayerToSvg, traceSilhouetteToSvg } from "@/lib/stencil/trace";
+import { ZoomPanImage } from "@/components/ZoomPanImage";
 
 function randomProjectName() {
   const n = Math.floor(1000 + Math.random() * 9000);
@@ -150,7 +152,9 @@ function BgEditor({
     baseRef.current = source;
     const mask = detectAndRemoveBackground(source.data, source.width, source.height, 36);
     maskRef.current = mask;
-    redraw();
+    // Wait a frame so the dialog content is mounted before drawing.
+    const raf = requestAnimationFrame(() => redraw());
+    return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, source]);
 
@@ -241,10 +245,10 @@ function BgEditor({
             <Slider value={[brush]} min={2} max={120} step={1} onValueChange={(v) => setBrush(v[0])} />
           </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-auto bg-muted rounded-md">
+        <div className="flex-1 min-h-0 overflow-auto bg-muted rounded-md flex items-center justify-center p-2">
           <canvas
             ref={canvasRef}
-            className="w-full h-auto touch-none cursor-crosshair block"
+            className="max-w-full max-h-[65vh] w-auto h-auto touch-none cursor-crosshair block object-contain"
             onPointerDown={(e) => {
               (e.target as HTMLElement).setPointerCapture(e.pointerId);
               setDrawing(true);
@@ -316,8 +320,6 @@ export function StencilMaker() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const projectLoadRef = useRef<HTMLInputElement>(null);
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
 
   // Keyboard navigation between layers while the zoom dialog is open.
   // Arrow Right/Down -> next, Arrow Left/Up -> previous. Silhouette (-1) is last.
@@ -441,26 +443,58 @@ export function StencilMaker() {
     return c;
   };
 
+  // Render an isolated layer at output resolution with a transparent background
+  // so it can be vector-traced cleanly (Cricut / Silhouette friendly).
+  const buildIsolatedScaledImageData = (layerIdx: number): ImageData | null => {
+    if (!workData || !labels) return null;
+    const img = renderLayerIsolated(labels, palette, workData.width, workData.height, layerIdx, null);
+    const src = imageDataToCanvas(img);
+    const c = document.createElement("canvas");
+    c.width = outWidth;
+    c.height = outHeight;
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(src, 0, 0, outWidth, outHeight);
+    return ctx.getImageData(0, 0, outWidth, outHeight);
+  };
+
+  const buildSilhouetteScaledImageData = (): ImageData | null => {
+    if (!workData || !labels) return null;
+    const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], null);
+    const src = imageDataToCanvas(img);
+    const c = document.createElement("canvas");
+    c.width = outWidth;
+    c.height = outHeight;
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(src, 0, 0, outWidth, outHeight);
+    return ctx.getImageData(0, 0, outWidth, outHeight);
+  };
+
   const downloadLayer = async (layerIdx: number, format: "png" | "svg") => {
     const img = buildLayerImageData(layerIdx, true);
     if (!img) return;
-    const c = scaleToOutput(img);
     if (format === "png") {
+      const c = scaleToOutput(img);
       c.toBlob((b) => b && downloadBlob(b, `${projectName}-layer-${layerIdx + 1}.png`));
     } else {
-      const svg = svgWrapImage(c.width, c.height, c.toDataURL("image/png"));
+      const scaled = buildIsolatedScaledImageData(layerIdx);
+      if (!scaled) return;
+      const svg = traceLayerToSvg(scaled, palette[layerIdx]);
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-layer-${layerIdx + 1}.svg`);
     }
   };
 
   const downloadSilhouette = async (format: "png" | "svg") => {
     if (!workData || !labels) return;
-    const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], hexToRgb(bgColor));
-    const c = scaleToOutput(img);
     if (format === "png") {
+      const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], hexToRgb(bgColor));
+      const c = scaleToOutput(img);
       c.toBlob((b) => b && downloadBlob(b, `${projectName}-silhouette.png`));
     } else {
-      const svg = svgWrapImage(c.width, c.height, c.toDataURL("image/png"));
+      const scaled = buildSilhouetteScaledImageData();
+      if (!scaled) return;
+      const svg = traceSilhouetteToSvg(scaled);
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-silhouette.svg`);
     }
   };
@@ -625,25 +659,30 @@ export function StencilMaker() {
     if (!workData || !labels) return;
     const zip = new JSZip();
     for (let i = 0; i < palette.length; i++) {
-      const img = renderLayerIsolated(labels, palette, workData.width, workData.height, i, hexToRgb(bgColor));
-      const c = scaleToOutput(img);
       if (format === "png") {
+        const img = renderLayerIsolated(labels, palette, workData.width, workData.height, i, hexToRgb(bgColor));
+        const c = scaleToOutput(img);
         const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
         zip.file(`layer-${String(i + 1).padStart(2, "0")}.png`, blob);
       } else {
-        const svg = svgWrapImage(c.width, c.height, c.toDataURL("image/png"));
+        const scaled = buildIsolatedScaledImageData(i);
+        if (!scaled) continue;
+        const svg = traceLayerToSvg(scaled, palette[i]);
         zip.file(`layer-${String(i + 1).padStart(2, "0")}.svg`, svg);
       }
     }
     if (includeSilhouette) {
-      const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], hexToRgb(bgColor));
-      const c = scaleToOutput(img);
       if (format === "png") {
+        const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], hexToRgb(bgColor));
+        const c = scaleToOutput(img);
         const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
         zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.png`, blob);
       } else {
-        const svg = svgWrapImage(c.width, c.height, c.toDataURL("image/png"));
-        zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+        const scaled = buildSilhouetteScaledImageData();
+        if (scaled) {
+          const svg = traceSilhouetteToSvg(scaled);
+          zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+        }
       }
     }
     const map = buildImageMapCanvas();
@@ -730,27 +769,7 @@ export function StencilMaker() {
     reader.readAsText(file);
   };
 
-  // --- Touch swipe navigation in zoom dialog ---
-  const SWIPE_THRESHOLD = 50;
-  const onTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.changedTouches[0].screenX;
-    touchStartY.current = e.changedTouches[0].screenY;
-  };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    const endX = e.changedTouches[0].screenX;
-    const endY = e.changedTouches[0].screenY;
-    const dx = endX - touchStartX.current;
-    const dy = endY - touchStartY.current;
-    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
-    e.preventDefault();
-    const order: number[] = palette.map((_, i) => i);
-    if (includeSilhouette) order.push(-1);
-    if (order.length === 0 || zoomLayer === null) return;
-    const cur = order.indexOf(zoomLayer);
-    if (cur === -1) return;
-    const dir = dx > 0 ? -1 : 1; // swipe right = prev, swipe left = next
-    setZoomLayer(order[(cur + dir + order.length) % order.length]);
-  };
+
 
   // ----------------------------------------------------------------------
   return (
@@ -1242,17 +1261,30 @@ export function StencilMaker() {
               {zoomLayer === -1 ? `Layer ${palette.length + 1} — Silhouette` : zoomLayer !== null ? `Layer ${zoomLayer + 1}` : ""}
             </DialogTitle>
           </DialogHeader>
-          <div
-            className="flex-1 min-h-0 overflow-auto touch-pan-y"
-            onTouchStart={onTouchStart}
-            onTouchEnd={onTouchEnd}
-          >
-            {zoomLayer === -1 && silhouetteUrl && (
-              <img src={silhouetteUrl} alt="Silhouette" className="w-full h-auto" draggable={false} />
-            )}
-            {zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer] && (
-              <img src={layerThumbs[zoomLayer].url} alt={`Layer ${zoomLayer + 1}`} className="w-full h-auto" draggable={false} />
-            )}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {(() => {
+              const order: number[] = palette.map((_, i) => i);
+              if (includeSilhouette) order.push(-1);
+              const goto = (dir: -1 | 1) => {
+                if (order.length === 0 || zoomLayer === null) return;
+                const cur = order.indexOf(zoomLayer);
+                if (cur === -1) return;
+                setZoomLayer(order[(cur + dir + order.length) % order.length]);
+              };
+              if (zoomLayer === -1 && silhouetteUrl) {
+                return <ZoomPanImage src={silhouetteUrl} alt="Silhouette" onSwipe={goto} />;
+              }
+              if (zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer]) {
+                return (
+                  <ZoomPanImage
+                    src={layerThumbs[zoomLayer].url}
+                    alt={`Layer ${zoomLayer + 1}`}
+                    onSwipe={goto}
+                  />
+                );
+              }
+              return null;
+            })()}
           </div>
           {zoomLayer !== null && zoomLayer >= 0 && palette[zoomLayer] && (
             <div className="flex flex-wrap items-center gap-2">
@@ -1274,7 +1306,7 @@ export function StencilMaker() {
             </div>
           )}
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline">Tip: use ← → arrows or swipe to switch layers</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">Tip: pinch / scroll to zoom · drag to pan · ← → or swipe to switch layers · double-tap to reset</span>
             <div className="flex gap-2 ml-auto">
               <Button
                 size="sm"
