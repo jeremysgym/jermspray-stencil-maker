@@ -1281,17 +1281,30 @@ export function StencilMaker() {
               {zoomLayer === -1 ? `Layer ${palette.length + 1} — Silhouette` : zoomLayer !== null ? `Layer ${zoomLayer + 1}` : ""}
             </DialogTitle>
           </DialogHeader>
-          <div
-            className="flex-1 min-h-0 overflow-auto touch-pan-y"
-            onTouchStart={onTouchStart}
-            onTouchEnd={onTouchEnd}
-          >
-            {zoomLayer === -1 && silhouetteUrl && (
-              <img src={silhouetteUrl} alt="Silhouette" className="w-full h-auto" draggable={false} />
-            )}
-            {zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer] && (
-              <img src={layerThumbs[zoomLayer].url} alt={`Layer ${zoomLayer + 1}`} className="w-full h-auto" draggable={false} />
-            )}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {(() => {
+              const order: number[] = palette.map((_, i) => i);
+              if (includeSilhouette) order.push(-1);
+              const goto = (dir: -1 | 1) => {
+                if (order.length === 0 || zoomLayer === null) return;
+                const cur = order.indexOf(zoomLayer);
+                if (cur === -1) return;
+                setZoomLayer(order[(cur + dir + order.length) % order.length]);
+              };
+              if (zoomLayer === -1 && silhouetteUrl) {
+                return <ZoomPanImage src={silhouetteUrl} alt="Silhouette" onSwipe={goto} />;
+              }
+              if (zoomLayer !== null && zoomLayer >= 0 && layerThumbs[zoomLayer]) {
+                return (
+                  <ZoomPanImage
+                    src={layerThumbs[zoomLayer].url}
+                    alt={`Layer ${zoomLayer + 1}`}
+                    onSwipe={goto}
+                  />
+                );
+              }
+              return null;
+            })()}
           </div>
           {zoomLayer !== null && zoomLayer >= 0 && palette[zoomLayer] && (
             <div className="flex flex-wrap items-center gap-2">
