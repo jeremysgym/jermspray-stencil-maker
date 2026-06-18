@@ -691,32 +691,42 @@ export function StencilMaker() {
   const downloadAll = async (format: "png" | "svg") => {
     if (!workData || !labels) return;
     const zip = new JSZip();
+    const swappedLayers: number[] = [];
     for (let i = 0; i < palette.length; i++) {
+      const { rgb: bg, swapped } = safeBgFor(palette[i]);
+      if (swapped) swappedLayers.push(i + 1);
       if (format === "png") {
-        const img = renderLayerIsolated(labels, palette, workData.width, workData.height, i, hexToRgb(bgColor));
+        const img = renderLayerIsolated(labels, palette, workData.width, workData.height, i, bg);
         const c = scaleToOutput(img);
         const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
         zip.file(`layer-${String(i + 1).padStart(2, "0")}.png`, blob);
       } else {
         const scaled = buildIsolatedScaledImageData(i);
         if (!scaled) continue;
-        const svg = traceLayerToSvg(scaled, palette[i]);
+        const svg = traceLayerToSvg(scaled, palette[i], { background: bg });
         zip.file(`layer-${String(i + 1).padStart(2, "0")}.svg`, svg);
       }
     }
     if (includeSilhouette) {
+      const { rgb: bg, swapped } = safeBgFor([0, 0, 0]);
+      if (swapped) swappedLayers.push(palette.length + 1);
       if (format === "png") {
-        const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], hexToRgb(bgColor));
+        const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], bg);
         const c = scaleToOutput(img);
         const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
         zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.png`, blob);
       } else {
         const scaled = buildSilhouetteScaledImageData();
         if (scaled) {
-          const svg = traceSilhouetteToSvg(scaled);
+          const svg = traceSilhouetteToSvg(scaled, { background: bg });
           zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
         }
       }
+    }
+    if (swappedLayers.length) {
+      toast.warning(
+        `Background matched layer ${swappedLayers.join(", ")} — those files were exported on a contrasting background.`,
+      );
     }
     const map = buildImageMapCanvas();
     if (map) {
