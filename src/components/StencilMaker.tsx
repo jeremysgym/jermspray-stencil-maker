@@ -52,8 +52,9 @@ import {
 } from "@/lib/stencil/quantize";
 import { detectAndRemoveBackground } from "@/lib/stencil/bg-removal";
 import { nameForHex } from "@/lib/stencil/color-name";
-import { traceLayerToSvg, traceSilhouetteToSvg } from "@/lib/stencil/trace";
+import { traceLayerToSvg, traceSilhouetteToSvg, colorsConflict } from "@/lib/stencil/trace";
 import { ZoomPanImage } from "@/components/ZoomPanImage";
+import { toast } from "sonner";
 
 function randomProjectName() {
   const n = Math.floor(1000 + Math.random() * 9000);
