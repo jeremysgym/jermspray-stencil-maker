@@ -425,11 +425,32 @@ export function StencilMaker() {
   }, [workData, labels, bgColor]);
 
   // --- Downloads ---
+
+  // Pick a safe background color for a layer's PNG/SVG export.
+  // If the user-chosen bgColor is identical (or near-identical) to the layer
+  // color, fall back to a contrasting color so the layer never disappears.
+  const safeBgFor = (layerColor: RGB): { rgb: RGB; swapped: boolean } => {
+    const bg = hexToRgb(bgColor);
+    if (!colorsConflict(layerColor, bg)) return { rgb: bg, swapped: false };
+    const lum = 0.299 * layerColor[0] + 0.587 * layerColor[1] + 0.114 * layerColor[2];
+    return { rgb: lum > 140 ? [0, 0, 0] : [255, 255, 255], swapped: true };
+  };
+
+  // Highlight palette layers whose color clashes with the chosen background.
+  const bgConflicts = useMemo(() => {
+    const bg = hexToRgb(bgColor);
+    const list: number[] = palette
+      .map((c, i) => (colorsConflict(c, bg) ? i : -1))
+      .filter((i) => i >= 0);
+    return list;
+  }, [palette, bgColor]);
+
   const buildLayerImageData = (layerIdx: number, isolated = true) => {
     if (!workData || !labels) return null;
+    const { rgb } = safeBgFor(palette[layerIdx]);
     return isolated
-      ? renderLayerIsolated(labels, palette, workData.width, workData.height, layerIdx, hexToRgb(bgColor))
-      : renderLayerCumulative(labels, palette, workData.width, workData.height, layerIdx, hexToRgb(bgColor));
+      ? renderLayerIsolated(labels, palette, workData.width, workData.height, layerIdx, rgb)
+      : renderLayerCumulative(labels, palette, workData.width, workData.height, layerIdx, rgb);
   };
 
   const scaleToOutput = (img: ImageData): HTMLCanvasElement => {
@@ -475,27 +496,38 @@ export function StencilMaker() {
   const downloadLayer = async (layerIdx: number, format: "png" | "svg") => {
     const img = buildLayerImageData(layerIdx, true);
     if (!img) return;
+    const { swapped } = safeBgFor(palette[layerIdx]);
+    if (swapped) {
+      toast.warning(
+        `Layer ${layerIdx + 1} matches the background color — exporting with a contrasting background so it stays visible.`,
+      );
+    }
     if (format === "png") {
       const c = scaleToOutput(img);
       c.toBlob((b) => b && downloadBlob(b, `${projectName}-layer-${layerIdx + 1}.png`));
     } else {
       const scaled = buildIsolatedScaledImageData(layerIdx);
       if (!scaled) return;
-      const svg = traceLayerToSvg(scaled, palette[layerIdx]);
+      const bg = safeBgFor(palette[layerIdx]).rgb;
+      const svg = traceLayerToSvg(scaled, palette[layerIdx], { background: bg });
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-layer-${layerIdx + 1}.svg`);
     }
   };
 
   const downloadSilhouette = async (format: "png" | "svg") => {
     if (!workData || !labels) return;
+    const { rgb: bg, swapped } = safeBgFor([0, 0, 0]);
+    if (swapped) {
+      toast.warning("Silhouette is black and matches the background — exporting on white instead.");
+    }
     if (format === "png") {
-      const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], hexToRgb(bgColor));
+      const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], bg);
       const c = scaleToOutput(img);
       c.toBlob((b) => b && downloadBlob(b, `${projectName}-silhouette.png`));
     } else {
       const scaled = buildSilhouetteScaledImageData();
       if (!scaled) return;
-      const svg = traceSilhouetteToSvg(scaled);
+      const svg = traceSilhouetteToSvg(scaled, { background: bg });
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-silhouette.svg`);
     }
   };
