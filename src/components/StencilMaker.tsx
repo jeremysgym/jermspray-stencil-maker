@@ -1019,7 +1019,7 @@ export function StencilMaker() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <Label className="min-w-[110px]">Background</Label>
                   <input
                     type="color"
@@ -1029,6 +1029,16 @@ export function StencilMaker() {
                   />
                   <span className="text-xs text-muted-foreground">{bgColor.toUpperCase()}</span>
                 </div>
+                {bgConflicts.length > 0 && (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+                    <span aria-hidden>⚠️</span>
+                    <span>
+                      Background matches{" "}
+                      {bgConflicts.map((i) => `Layer ${i + 1}`).join(", ")}.
+                      Those exports will use a contrasting background so the cut stays visible.
+                    </span>
+                  </div>
+                )}
 
                 <div className="space-y-2 border-t pt-3">
                   <div className="flex items-center gap-3">
