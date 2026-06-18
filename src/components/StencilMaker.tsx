@@ -436,6 +436,28 @@ export function StencilMaker() {
     return { rgb: lum > 140 ? [0, 0, 0] : [255, 255, 255], swapped: true };
   };
 
+  // Suggest a single background color that doesn't conflict with ANY layer.
+  // Tries a small set of neutral candidates and picks the one whose nearest
+  // palette distance is largest.
+  const pickGlobalSafeBg = (forLayer?: RGB): string => {
+    const candidates: RGB[] = [
+      [255, 255, 255], [0, 0, 0], [240, 240, 240], [32, 32, 32],
+      [200, 200, 200], [64, 64, 64], [255, 192, 203], [173, 216, 230],
+    ];
+    const targets = forLayer ? [forLayer] : palette;
+    let best: RGB = [255, 255, 255];
+    let bestScore = -1;
+    for (const c of candidates) {
+      let minD = Infinity;
+      for (const p of targets) {
+        const d = Math.sqrt((c[0]-p[0])**2 + (c[1]-p[1])**2 + (c[2]-p[2])**2);
+        if (d < minD) minD = d;
+      }
+      if (minD > bestScore) { bestScore = minD; best = c; }
+    }
+    return rgbToHex(best);
+  };
+
   // Highlight palette layers whose color clashes with the chosen background.
   const bgConflicts = useMemo(() => {
     const bg = hexToRgb(bgColor);
