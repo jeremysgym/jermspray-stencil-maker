@@ -1052,14 +1052,63 @@ export function StencilMaker() {
                   <span className="text-xs text-muted-foreground">{bgColor.toUpperCase()}</span>
                 </div>
                 {bgConflicts.length > 0 && (
-                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
-                    <span aria-hidden>⚠️</span>
-                    <span>
-                      Background matches{" "}
-                      {bgConflicts.map((i) => `Layer ${i + 1}`).join(", ")}.
-                      Those exports will use a contrasting background so the cut stays visible.
-                    </span>
-                  </div>
+                  <details className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 group" open>
+                    <summary className="cursor-pointer flex items-center gap-2 font-medium list-none [&::-webkit-details-marker]:hidden">
+                      <span aria-hidden>⚠️</span>
+                      <span className="flex-1">
+                        {bgConflicts.length} layer{bgConflicts.length > 1 ? "s" : ""} conflict with background{" "}
+                        <span className="inline-block w-3 h-3 rounded-sm border border-amber-600/40 align-middle" style={{ background: bgColor }} />{" "}
+                        <code>{bgColor.toUpperCase()}</code>
+                      </span>
+                      <span className="text-[10px] opacity-60 group-open:hidden">expand</span>
+                      <span className="text-[10px] opacity-60 hidden group-open:inline">collapse</span>
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          const next = pickGlobalSafeBg();
+                          setBgColor(next);
+                          toast.success(`Background adjusted to ${next.toUpperCase()} (safe for all layers).`);
+                        }}
+                      >
+                        Auto-adjust background for all layers
+                      </Button>
+                      <ul className="space-y-1">
+                        {bgConflicts.map((i) => {
+                          const layerHex = rgbToHex(palette[i]);
+                          const swap = rgbToHex(safeBgFor(palette[i]).rgb);
+                          return (
+                            <li key={i} className="flex items-center gap-2 rounded bg-amber-500/5 px-2 py-1">
+                              <span className="inline-block w-4 h-4 rounded border border-amber-600/40" style={{ background: layerHex }} />
+                              <span className="font-medium">Layer {i + 1}</span>
+                              <code className="text-[10px] opacity-75">{layerHex.toUpperCase()}</code>
+                              <span className="opacity-60">→ exports on</span>
+                              <span className="inline-block w-4 h-4 rounded border border-amber-600/40" style={{ background: swap }} />
+                              <code className="text-[10px] opacity-75">{swap.toUpperCase()}</code>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 ml-auto text-[11px] px-2"
+                                onClick={() => {
+                                  const next = pickGlobalSafeBg(palette[i]);
+                                  setBgColor(next);
+                                  toast.success(`Background set to ${next.toUpperCase()} — safe for Layer ${i + 1}.`);
+                                }}
+                              >
+                                Fix
+                              </Button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <p className="opacity-70">
+                        Saved .svg files use your selected background color. When a layer matches it, that layer's file uses the contrasting color shown above so the cut stays visible.
+                      </p>
+                    </div>
+                  </details>
                 )}
 
                 <div className="space-y-2 border-t pt-3">
