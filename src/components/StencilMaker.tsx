@@ -567,41 +567,67 @@ export function StencilMaker() {
   const downloadLayer = async (layerIdx: number, format: "png" | "svg") => {
     const img = buildLayerImageData(layerIdx, true);
     if (!img) return;
-    const { swapped } = safeBgFor(palette[layerIdx]);
-    if (swapped) {
-      toast.warning(
-        `Layer ${layerIdx + 1} matches the background color — exporting with a contrasting background so it stays visible.`,
-      );
-    }
     if (format === "png") {
+      const { swapped } = safeBgFor(palette[layerIdx]);
+      if (swapped && !lockBg) {
+        toast.warning(
+          `Layer ${layerIdx + 1} matches the background — exporting on a contrasting background.`,
+        );
+      }
       const c = scaleToOutput(img);
       c.toBlob((b) => b && downloadBlob(b, `${projectName}-layer-${layerIdx + 1}.png`));
     } else {
+      const fg = fgForSvg(palette[layerIdx]);
+      const resolved = resolveExportBg(fg);
+      let bg = resolved.rgb;
+      if (resolved.blocked) {
+        const swap = confirmSwap(fg, `Layer ${layerIdx + 1}`);
+        if (!swap) {
+          toast.error(`Skipped Layer ${layerIdx + 1} — background is locked.`);
+          return;
+        }
+        bg = swap;
+      } else if (resolved.swapped) {
+        toast.warning(
+          `Layer ${layerIdx + 1} matches the background — exporting on a contrasting background.`,
+        );
+      }
       const scaled = buildIsolatedScaledImageData(layerIdx);
       if (!scaled) return;
-      const bg = safeBgFor(palette[layerIdx]).rgb;
-      const svg = traceLayerToSvg(scaled, palette[layerIdx], { background: bg });
+      const svg = traceLayerToSvg(scaled, fg, { background: bg });
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-layer-${layerIdx + 1}.svg`);
     }
   };
 
   const downloadSilhouette = async (format: "png" | "svg") => {
     if (!workData || !labels) return;
-    const { rgb: bg, swapped } = safeBgFor([0, 0, 0]);
-    if (swapped) {
-      toast.warning("Silhouette is black and matches the background — exporting on white instead.");
-    }
     if (format === "png") {
+      const { rgb: bg, swapped } = safeBgFor([0, 0, 0]);
+      if (swapped && !lockBg) toast.warning("Silhouette is black and matches the background — exporting on white instead.");
       const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], bg);
       const c = scaleToOutput(img);
       c.toBlob((b) => b && downloadBlob(b, `${projectName}-silhouette.png`));
     } else {
+      const resolved = resolveExportBg([0, 0, 0]);
+      let bg = resolved.rgb;
+      if (resolved.blocked) {
+        const swap = confirmSwap([0, 0, 0], "Silhouette");
+        if (!swap) {
+          toast.error("Skipped silhouette — background is locked.");
+          return;
+        }
+        bg = swap;
+      } else if (resolved.swapped) {
+        toast.warning("Silhouette matches the background — exporting on a contrasting background.");
+      }
       const scaled = buildSilhouetteScaledImageData();
       if (!scaled) return;
       const svg = traceSilhouetteToSvg(scaled, { background: bg });
+      // Silhouette is black; on white bg keep it black (already enforced by traceSilhouetteToSvg).
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-silhouette.svg`);
     }
   };
+
 
   // Image map: composite preview with thumbnails + labels
   const buildImageMapCanvas = (): HTMLCanvasElement | null => {
