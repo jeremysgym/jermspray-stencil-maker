@@ -430,19 +430,39 @@ export function StencilMaker() {
 
   // --- Downloads ---
 
-  // Pick a safe background color for a layer's PNG/SVG export.
-  // If the user-chosen bgColor is identical (or near-identical) to the layer
-  // color, fall back to a contrasting color so the layer never disappears.
-  const safeBgFor = (layerColor: RGB): { rgb: RGB; swapped: boolean } => {
+  // White-ish background?  If so, SVG foreground is forced to black per spec.
+  const isWhiteBg = (): boolean => {
+    const [r, g, b] = hexToRgb(bgColor);
+    return r > 240 && g > 240 && b > 240;
+  };
+
+  // Effective foreground color used in SVG exports.
+  const fgForSvg = (layerColor: RGB): RGB =>
+    isWhiteBg() ? [0, 0, 0] : layerColor;
+
+  // Resolve the export background for a layer.
+  // - locked + no conflict     -> use selected bgColor literally
+  // - locked + conflict        -> blocked: caller must prompt user to swap
+  // - unlocked + no conflict   -> use selected bgColor
+  // - unlocked + conflict      -> silently swap to a contrasting color
+  const resolveExportBg = (
+    fgColor: RGB,
+  ): { rgb: RGB; swapped: boolean; blocked: boolean } => {
     const bg = hexToRgb(bgColor);
-    if (!colorsConflict(layerColor, bg)) return { rgb: bg, swapped: false };
-    const lum = 0.299 * layerColor[0] + 0.587 * layerColor[1] + 0.114 * layerColor[2];
-    return { rgb: lum > 140 ? [0, 0, 0] : [255, 255, 255], swapped: true };
+    if (!colorsConflict(fgColor, bg)) return { rgb: bg, swapped: false, blocked: false };
+    if (lockBg) return { rgb: bg, swapped: false, blocked: true };
+    const lum = 0.299 * fgColor[0] + 0.587 * fgColor[1] + 0.114 * fgColor[2];
+    return { rgb: lum > 140 ? [0, 0, 0] : [255, 255, 255], swapped: true, blocked: false };
+  };
+
+  // Legacy helper retained for PNG previews and silhouette rendering
+  // that doesn't need block-on-lock semantics.
+  const safeBgFor = (layerColor: RGB): { rgb: RGB; swapped: boolean } => {
+    const r = resolveExportBg(layerColor);
+    return { rgb: r.rgb, swapped: r.swapped };
   };
 
   // Suggest a single background color that doesn't conflict with ANY layer.
-  // Tries a small set of neutral candidates and picks the one whose nearest
-  // palette distance is largest.
   const pickGlobalSafeBg = (forLayer?: RGB): string => {
     const candidates: RGB[] = [
       [255, 255, 255], [0, 0, 0], [240, 240, 240], [32, 32, 32],
@@ -462,6 +482,14 @@ export function StencilMaker() {
     return rgbToHex(best);
   };
 
+  // Apply the auto-adjusted safe background to fix all conflicts in one click.
+  const applySafeBgToAll = () => {
+    if (palette.length === 0) return;
+    const next = pickGlobalSafeBg();
+    setBgColor(next);
+    toast.success(`Background adjusted to ${next.toUpperCase()} — safe for every layer.`);
+  };
+
   // Highlight palette layers whose color clashes with the chosen background.
   const bgConflicts = useMemo(() => {
     const bg = hexToRgb(bgColor);
@@ -470,6 +498,23 @@ export function StencilMaker() {
       .filter((i) => i >= 0);
     return list;
   }, [palette, bgColor]);
+
+  // Confirm-and-swap helper for the locked path. Returns the bg to use.
+  const confirmSwap = (
+    fgColor: RGB,
+    label: string,
+  ): RGB | null => {
+    const lum = 0.299 * fgColor[0] + 0.587 * fgColor[1] + 0.114 * fgColor[2];
+    const swap: RGB = lum > 140 ? [0, 0, 0] : [255, 255, 255];
+    const swapHex = rgbToHex(swap).toUpperCase();
+    const ok = typeof window !== "undefined" && window.confirm(
+      `${label} matches the locked background ${bgColor.toUpperCase()}.\n\n` +
+      `Export with a contrasting background ${swapHex} so it stays visible?\n\n` +
+      `Press Cancel to keep the lock and skip this file.`,
+    );
+    return ok ? swap : null;
+  };
+
 
   const buildLayerImageData = (layerIdx: number, isolated = true) => {
     if (!workData || !labels) return null;
