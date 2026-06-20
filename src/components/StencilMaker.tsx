@@ -858,6 +858,11 @@ export function StencilMaker() {
         `Background matched layer ${swappedLayers.join(", ")} — those files were exported on a contrasting background.`,
       );
     }
+    if (skipped.length) {
+      toast.error(
+        `Skipped layer ${skipped.join(", ")} — locked background conflict. Unlock or auto-adjust to include them.`,
+      );
+    }
     const map = buildImageMapCanvas();
     if (map) {
       const mb = await new Promise<Blob>((r) => map.toBlob((b) => r(b!), "image/png"));
