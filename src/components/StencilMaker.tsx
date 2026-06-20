@@ -296,6 +296,10 @@ export function StencilMaker() {
 
   // Display options
   const [bgColor, setBgColor] = useState("#ffffff");
+  // When true, exports use the literal selected bgColor. If a layer color
+  // would collide with that bg, the export is blocked until the user
+  // confirms a one-time auto-swap.
+  const [lockBg, setLockBg] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const [includeSilhouette, setIncludeSilhouette] = useState(true);
 
@@ -426,19 +430,39 @@ export function StencilMaker() {
 
   // --- Downloads ---
 
-  // Pick a safe background color for a layer's PNG/SVG export.
-  // If the user-chosen bgColor is identical (or near-identical) to the layer
-  // color, fall back to a contrasting color so the layer never disappears.
-  const safeBgFor = (layerColor: RGB): { rgb: RGB; swapped: boolean } => {
+  // White-ish background?  If so, SVG foreground is forced to black per spec.
+  const isWhiteBg = (): boolean => {
+    const [r, g, b] = hexToRgb(bgColor);
+    return r > 240 && g > 240 && b > 240;
+  };
+
+  // Effective foreground color used in SVG exports.
+  const fgForSvg = (layerColor: RGB): RGB =>
+    isWhiteBg() ? [0, 0, 0] : layerColor;
+
+  // Resolve the export background for a layer.
+  // - locked + no conflict     -> use selected bgColor literally
+  // - locked + conflict        -> blocked: caller must prompt user to swap
+  // - unlocked + no conflict   -> use selected bgColor
+  // - unlocked + conflict      -> silently swap to a contrasting color
+  const resolveExportBg = (
+    fgColor: RGB,
+  ): { rgb: RGB; swapped: boolean; blocked: boolean } => {
     const bg = hexToRgb(bgColor);
-    if (!colorsConflict(layerColor, bg)) return { rgb: bg, swapped: false };
-    const lum = 0.299 * layerColor[0] + 0.587 * layerColor[1] + 0.114 * layerColor[2];
-    return { rgb: lum > 140 ? [0, 0, 0] : [255, 255, 255], swapped: true };
+    if (!colorsConflict(fgColor, bg)) return { rgb: bg, swapped: false, blocked: false };
+    if (lockBg) return { rgb: bg, swapped: false, blocked: true };
+    const lum = 0.299 * fgColor[0] + 0.587 * fgColor[1] + 0.114 * fgColor[2];
+    return { rgb: lum > 140 ? [0, 0, 0] : [255, 255, 255], swapped: true, blocked: false };
+  };
+
+  // Legacy helper retained for PNG previews and silhouette rendering
+  // that doesn't need block-on-lock semantics.
+  const safeBgFor = (layerColor: RGB): { rgb: RGB; swapped: boolean } => {
+    const r = resolveExportBg(layerColor);
+    return { rgb: r.rgb, swapped: r.swapped };
   };
 
   // Suggest a single background color that doesn't conflict with ANY layer.
-  // Tries a small set of neutral candidates and picks the one whose nearest
-  // palette distance is largest.
   const pickGlobalSafeBg = (forLayer?: RGB): string => {
     const candidates: RGB[] = [
       [255, 255, 255], [0, 0, 0], [240, 240, 240], [32, 32, 32],
@@ -458,6 +482,14 @@ export function StencilMaker() {
     return rgbToHex(best);
   };
 
+  // Apply the auto-adjusted safe background to fix all conflicts in one click.
+  const applySafeBgToAll = () => {
+    if (palette.length === 0) return;
+    const next = pickGlobalSafeBg();
+    setBgColor(next);
+    toast.success(`Background adjusted to ${next.toUpperCase()} — safe for every layer.`);
+  };
+
   // Highlight palette layers whose color clashes with the chosen background.
   const bgConflicts = useMemo(() => {
     const bg = hexToRgb(bgColor);
@@ -466,6 +498,23 @@ export function StencilMaker() {
       .filter((i) => i >= 0);
     return list;
   }, [palette, bgColor]);
+
+  // Confirm-and-swap helper for the locked path. Returns the bg to use.
+  const confirmSwap = (
+    fgColor: RGB,
+    label: string,
+  ): RGB | null => {
+    const lum = 0.299 * fgColor[0] + 0.587 * fgColor[1] + 0.114 * fgColor[2];
+    const swap: RGB = lum > 140 ? [0, 0, 0] : [255, 255, 255];
+    const swapHex = rgbToHex(swap).toUpperCase();
+    const ok = typeof window !== "undefined" && window.confirm(
+      `${label} matches the locked background ${bgColor.toUpperCase()}.\n\n` +
+      `Export with a contrasting background ${swapHex} so it stays visible?\n\n` +
+      `Press Cancel to keep the lock and skip this file.`,
+    );
+    return ok ? swap : null;
+  };
+
 
   const buildLayerImageData = (layerIdx: number, isolated = true) => {
     if (!workData || !labels) return null;
@@ -518,41 +567,67 @@ export function StencilMaker() {
   const downloadLayer = async (layerIdx: number, format: "png" | "svg") => {
     const img = buildLayerImageData(layerIdx, true);
     if (!img) return;
-    const { swapped } = safeBgFor(palette[layerIdx]);
-    if (swapped) {
-      toast.warning(
-        `Layer ${layerIdx + 1} matches the background color — exporting with a contrasting background so it stays visible.`,
-      );
-    }
     if (format === "png") {
+      const { swapped } = safeBgFor(palette[layerIdx]);
+      if (swapped && !lockBg) {
+        toast.warning(
+          `Layer ${layerIdx + 1} matches the background — exporting on a contrasting background.`,
+        );
+      }
       const c = scaleToOutput(img);
       c.toBlob((b) => b && downloadBlob(b, `${projectName}-layer-${layerIdx + 1}.png`));
     } else {
+      const fg = fgForSvg(palette[layerIdx]);
+      const resolved = resolveExportBg(fg);
+      let bg = resolved.rgb;
+      if (resolved.blocked) {
+        const swap = confirmSwap(fg, `Layer ${layerIdx + 1}`);
+        if (!swap) {
+          toast.error(`Skipped Layer ${layerIdx + 1} — background is locked.`);
+          return;
+        }
+        bg = swap;
+      } else if (resolved.swapped) {
+        toast.warning(
+          `Layer ${layerIdx + 1} matches the background — exporting on a contrasting background.`,
+        );
+      }
       const scaled = buildIsolatedScaledImageData(layerIdx);
       if (!scaled) return;
-      const bg = safeBgFor(palette[layerIdx]).rgb;
-      const svg = traceLayerToSvg(scaled, palette[layerIdx], { background: bg });
+      const svg = traceLayerToSvg(scaled, fg, { background: bg });
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-layer-${layerIdx + 1}.svg`);
     }
   };
 
   const downloadSilhouette = async (format: "png" | "svg") => {
     if (!workData || !labels) return;
-    const { rgb: bg, swapped } = safeBgFor([0, 0, 0]);
-    if (swapped) {
-      toast.warning("Silhouette is black and matches the background — exporting on white instead.");
-    }
     if (format === "png") {
+      const { rgb: bg, swapped } = safeBgFor([0, 0, 0]);
+      if (swapped && !lockBg) toast.warning("Silhouette is black and matches the background — exporting on white instead.");
       const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], bg);
       const c = scaleToOutput(img);
       c.toBlob((b) => b && downloadBlob(b, `${projectName}-silhouette.png`));
     } else {
+      const resolved = resolveExportBg([0, 0, 0]);
+      let bg = resolved.rgb;
+      if (resolved.blocked) {
+        const swap = confirmSwap([0, 0, 0], "Silhouette");
+        if (!swap) {
+          toast.error("Skipped silhouette — background is locked.");
+          return;
+        }
+        bg = swap;
+      } else if (resolved.swapped) {
+        toast.warning("Silhouette matches the background — exporting on a contrasting background.");
+      }
       const scaled = buildSilhouetteScaledImageData();
       if (!scaled) return;
       const svg = traceSilhouetteToSvg(scaled, { background: bg });
+      // Silhouette is black; on white bg keep it black (already enforced by traceSilhouetteToSvg).
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-silhouette.svg`);
     }
   };
+
 
   // Image map: composite preview with thumbnails + labels
   const buildImageMapCanvas = (): HTMLCanvasElement | null => {
@@ -712,11 +787,34 @@ export function StencilMaker() {
 
   const downloadAll = async (format: "png" | "svg") => {
     if (!workData || !labels) return;
+
+    // For SVG with the lock on: if any conflicts exist, ask once whether to
+    // apply the global safe bg or auto-swap per layer. Cancel skips conflicts.
+    let bulkSwapApproved = false;
+    if (format === "svg" && lockBg && bgConflicts.length > 0) {
+      const ok = typeof window !== "undefined" && window.confirm(
+        `${bgConflicts.length} layer(s) match the locked background ${bgColor.toUpperCase()}.\n\n` +
+        `OK = auto-swap those layers to a contrasting background for this export.\n` +
+        `Cancel = skip the conflicting layers.`,
+      );
+      bulkSwapApproved = ok;
+    }
+
     const zip = new JSZip();
     const swappedLayers: number[] = [];
+    const skipped: number[] = [];
     for (let i = 0; i < palette.length; i++) {
-      const { rgb: bg, swapped } = safeBgFor(palette[i]);
-      if (swapped) swappedLayers.push(i + 1);
+      const fg = format === "svg" ? fgForSvg(palette[i]) : palette[i];
+      const resolved = resolveExportBg(fg);
+      let bg = resolved.rgb;
+      if (resolved.blocked) {
+        if (!bulkSwapApproved) { skipped.push(i + 1); continue; }
+        const lum = 0.299*fg[0]+0.587*fg[1]+0.114*fg[2];
+        bg = lum > 140 ? [0,0,0] : [255,255,255];
+        swappedLayers.push(i + 1);
+      } else if (resolved.swapped) {
+        swappedLayers.push(i + 1);
+      }
       if (format === "png") {
         const img = renderLayerIsolated(labels, palette, workData.width, workData.height, i, bg);
         const c = scaleToOutput(img);
@@ -725,29 +823,44 @@ export function StencilMaker() {
       } else {
         const scaled = buildIsolatedScaledImageData(i);
         if (!scaled) continue;
-        const svg = traceLayerToSvg(scaled, palette[i], { background: bg });
+        const svg = traceLayerToSvg(scaled, fg, { background: bg });
         zip.file(`layer-${String(i + 1).padStart(2, "0")}.svg`, svg);
       }
     }
     if (includeSilhouette) {
-      const { rgb: bg, swapped } = safeBgFor([0, 0, 0]);
-      if (swapped) swappedLayers.push(palette.length + 1);
-      if (format === "png") {
-        const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], bg);
-        const c = scaleToOutput(img);
-        const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
-        zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.png`, blob);
-      } else {
-        const scaled = buildSilhouetteScaledImageData();
-        if (scaled) {
-          const svg = traceSilhouetteToSvg(scaled, { background: bg });
-          zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+      const resolved = resolveExportBg([0, 0, 0]);
+      let bg = resolved.rgb;
+      let include = true;
+      if (resolved.blocked) {
+        if (!bulkSwapApproved) { include = false; skipped.push(palette.length + 1); }
+        else { bg = [255, 255, 255]; swappedLayers.push(palette.length + 1); }
+      } else if (resolved.swapped) {
+        swappedLayers.push(palette.length + 1);
+      }
+      if (include) {
+        if (format === "png") {
+          const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], bg);
+          const c = scaleToOutput(img);
+          const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
+          zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.png`, blob);
+        } else {
+          const scaled = buildSilhouetteScaledImageData();
+          if (scaled) {
+            const svg = traceSilhouetteToSvg(scaled, { background: bg });
+            zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+          }
         }
+
       }
     }
     if (swappedLayers.length) {
       toast.warning(
         `Background matched layer ${swappedLayers.join(", ")} — those files were exported on a contrasting background.`,
+      );
+    }
+    if (skipped.length) {
+      toast.error(
+        `Skipped layer ${skipped.join(", ")} — locked background conflict. Unlock or auto-adjust to include them.`,
       );
     }
     const map = buildImageMapCanvas();
@@ -787,6 +900,7 @@ export function StencilMaker() {
       projectName,
       numLayers,
       bgColor,
+      lockBg,
       includeSilhouette,
       markersEnabled,
       markerSize,
@@ -806,6 +920,7 @@ export function StencilMaker() {
         if (data.projectName) setProjectName(data.projectName);
         if (typeof data.numLayers === "number") setNumLayers(data.numLayers);
         if (data.bgColor) setBgColor(data.bgColor);
+        if (typeof data.lockBg === "boolean") setLockBg(data.lockBg);
         if (typeof data.includeSilhouette === "boolean") setIncludeSilhouette(data.includeSilhouette);
         if (typeof data.markersEnabled === "boolean") setMarkersEnabled(data.markersEnabled);
         if (typeof data.markerSize === "number") setMarkerSize(data.markerSize);
@@ -1050,7 +1165,29 @@ export function StencilMaker() {
                     className="w-12 h-9 rounded border border-border bg-transparent"
                   />
                   <span className="text-xs text-muted-foreground">{bgColor.toUpperCase()}</span>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Switch
+                      id="lockbg"
+                      checked={lockBg}
+                      onCheckedChange={(v) => {
+                        setLockBg(v);
+                        if (v && bgConflicts.length > 0) {
+                          toast.warning(
+                            `Locked — but ${bgConflicts.length} layer(s) collide. You'll be asked to confirm an auto-swap on export.`,
+                          );
+                        } else if (v) {
+                          toast.success("Background locked — exports will use the exact selected color.");
+                        }
+                      }}
+                    />
+                    <Label htmlFor="lockbg" className="cursor-pointer text-xs">Lock background</Label>
+                  </div>
                 </div>
+                {isWhiteBg() && (
+                  <p className="text-xs text-muted-foreground -mt-2">
+                    Background is white — SVG foregrounds will be exported as black.
+                  </p>
+                )}
                 {bgConflicts.length > 0 && (
                   <details className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 group" open>
                     <summary className="cursor-pointer flex items-center gap-2 font-medium list-none [&::-webkit-details-marker]:hidden">
@@ -1059,23 +1196,34 @@ export function StencilMaker() {
                         {bgConflicts.length} layer{bgConflicts.length > 1 ? "s" : ""} conflict with background{" "}
                         <span className="inline-block w-3 h-3 rounded-sm border border-amber-600/40 align-middle" style={{ background: bgColor }} />{" "}
                         <code>{bgColor.toUpperCase()}</code>
+                        {lockBg && <span className="ml-1 opacity-80">(locked — export will require confirmation)</span>}
                       </span>
                       <span className="text-[10px] opacity-60 group-open:hidden">expand</span>
                       <span className="text-[10px] opacity-60 hidden group-open:inline">collapse</span>
                     </summary>
                     <div className="mt-2 space-y-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          const next = pickGlobalSafeBg();
-                          setBgColor(next);
-                          toast.success(`Background adjusted to ${next.toUpperCase()} (safe for all layers).`);
-                        }}
-                      >
-                        Auto-adjust background for all layers
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs"
+                          onClick={applySafeBgToAll}
+                        >
+                          Apply to all (auto-adjust safe background)
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            const next = pickGlobalSafeBg();
+                            setBgColor(next);
+                            toast.success(`Background adjusted to ${next.toUpperCase()} (safe for all layers).`);
+                          }}
+                        >
+                          Suggest a safe background
+                        </Button>
+                      </div>
                       <ul className="space-y-1">
                         {bgConflicts.map((i) => {
                           const layerHex = rgbToHex(palette[i]);
@@ -1105,11 +1253,14 @@ export function StencilMaker() {
                         })}
                       </ul>
                       <p className="opacity-70">
-                        Saved .svg files use your selected background color. When a layer matches it, that layer's file uses the contrasting color shown above so the cut stays visible.
+                        {lockBg
+                          ? "Background is locked — exports will use your selected color exactly. You'll be asked to confirm a swap for any conflicting layer."
+                          : "Saved .svg files use your selected background color. When a layer matches it, that layer's file is auto-swapped to the contrasting color shown above so the cut stays visible."}
                       </p>
                     </div>
                   </details>
                 )}
+
 
                 <div className="space-y-2 border-t pt-3">
                   <div className="flex items-center gap-3">
