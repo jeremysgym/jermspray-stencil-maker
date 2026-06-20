@@ -1163,7 +1163,29 @@ export function StencilMaker() {
                     className="w-12 h-9 rounded border border-border bg-transparent"
                   />
                   <span className="text-xs text-muted-foreground">{bgColor.toUpperCase()}</span>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Switch
+                      id="lockbg"
+                      checked={lockBg}
+                      onCheckedChange={(v) => {
+                        setLockBg(v);
+                        if (v && bgConflicts.length > 0) {
+                          toast.warning(
+                            `Locked — but ${bgConflicts.length} layer(s) collide. You'll be asked to confirm an auto-swap on export.`,
+                          );
+                        } else if (v) {
+                          toast.success("Background locked — exports will use the exact selected color.");
+                        }
+                      }}
+                    />
+                    <Label htmlFor="lockbg" className="cursor-pointer text-xs">Lock background</Label>
+                  </div>
                 </div>
+                {isWhiteBg() && (
+                  <p className="text-xs text-muted-foreground -mt-2">
+                    Background is white — SVG foregrounds will be exported as black.
+                  </p>
+                )}
                 {bgConflicts.length > 0 && (
                   <details className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 group" open>
                     <summary className="cursor-pointer flex items-center gap-2 font-medium list-none [&::-webkit-details-marker]:hidden">
@@ -1172,23 +1194,34 @@ export function StencilMaker() {
                         {bgConflicts.length} layer{bgConflicts.length > 1 ? "s" : ""} conflict with background{" "}
                         <span className="inline-block w-3 h-3 rounded-sm border border-amber-600/40 align-middle" style={{ background: bgColor }} />{" "}
                         <code>{bgColor.toUpperCase()}</code>
+                        {lockBg && <span className="ml-1 opacity-80">(locked — export will require confirmation)</span>}
                       </span>
                       <span className="text-[10px] opacity-60 group-open:hidden">expand</span>
                       <span className="text-[10px] opacity-60 hidden group-open:inline">collapse</span>
                     </summary>
                     <div className="mt-2 space-y-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          const next = pickGlobalSafeBg();
-                          setBgColor(next);
-                          toast.success(`Background adjusted to ${next.toUpperCase()} (safe for all layers).`);
-                        }}
-                      >
-                        Auto-adjust background for all layers
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs"
+                          onClick={applySafeBgToAll}
+                        >
+                          Apply to all (auto-adjust safe background)
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            const next = pickGlobalSafeBg();
+                            setBgColor(next);
+                            toast.success(`Background adjusted to ${next.toUpperCase()} (safe for all layers).`);
+                          }}
+                        >
+                          Suggest a safe background
+                        </Button>
+                      </div>
                       <ul className="space-y-1">
                         {bgConflicts.map((i) => {
                           const layerHex = rgbToHex(palette[i]);
@@ -1218,11 +1251,14 @@ export function StencilMaker() {
                         })}
                       </ul>
                       <p className="opacity-70">
-                        Saved .svg files use your selected background color. When a layer matches it, that layer's file uses the contrasting color shown above so the cut stays visible.
+                        {lockBg
+                          ? "Background is locked — exports will use your selected color exactly. You'll be asked to confirm a swap for any conflicting layer."
+                          : "Saved .svg files use your selected background color. When a layer matches it, that layer's file is auto-swapped to the contrasting color shown above so the cut stays visible."}
                       </p>
                     </div>
                   </details>
                 )}
+
 
                 <div className="space-y-2 border-t pt-3">
                   <div className="flex items-center gap-3">
