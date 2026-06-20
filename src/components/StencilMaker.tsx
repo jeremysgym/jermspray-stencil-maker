@@ -296,6 +296,10 @@ export function StencilMaker() {
 
   // Display options
   const [bgColor, setBgColor] = useState("#ffffff");
+  // When true, exports use the literal selected bgColor. If a layer color
+  // would collide with that bg, the export is blocked until the user
+  // confirms a one-time auto-swap.
+  const [lockBg, setLockBg] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const [includeSilhouette, setIncludeSilhouette] = useState(true);
 
