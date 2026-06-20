@@ -900,6 +900,7 @@ export function StencilMaker() {
       projectName,
       numLayers,
       bgColor,
+      lockBg,
       includeSilhouette,
       markersEnabled,
       markerSize,
