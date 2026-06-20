@@ -920,6 +920,7 @@ export function StencilMaker() {
         if (data.projectName) setProjectName(data.projectName);
         if (typeof data.numLayers === "number") setNumLayers(data.numLayers);
         if (data.bgColor) setBgColor(data.bgColor);
+        if (typeof data.lockBg === "boolean") setLockBg(data.lockBg);
         if (typeof data.includeSilhouette === "boolean") setIncludeSilhouette(data.includeSilhouette);
         if (typeof data.markersEnabled === "boolean") setMarkersEnabled(data.markersEnabled);
         if (typeof data.markerSize === "number") setMarkerSize(data.markerSize);
