@@ -787,11 +787,34 @@ export function StencilMaker() {
 
   const downloadAll = async (format: "png" | "svg") => {
     if (!workData || !labels) return;
+
+    // For SVG with the lock on: if any conflicts exist, ask once whether to
+    // apply the global safe bg or auto-swap per layer. Cancel skips conflicts.
+    let bulkSwapApproved = false;
+    if (format === "svg" && lockBg && bgConflicts.length > 0) {
+      const ok = typeof window !== "undefined" && window.confirm(
+        `${bgConflicts.length} layer(s) match the locked background ${bgColor.toUpperCase()}.\n\n` +
+        `OK = auto-swap those layers to a contrasting background for this export.\n` +
+        `Cancel = skip the conflicting layers.`,
+      );
+      bulkSwapApproved = ok;
+    }
+
     const zip = new JSZip();
     const swappedLayers: number[] = [];
+    const skipped: number[] = [];
     for (let i = 0; i < palette.length; i++) {
-      const { rgb: bg, swapped } = safeBgFor(palette[i]);
-      if (swapped) swappedLayers.push(i + 1);
+      const fg = format === "svg" ? fgForSvg(palette[i]) : palette[i];
+      const resolved = resolveExportBg(fg);
+      let bg = resolved.rgb;
+      if (resolved.blocked) {
+        if (!bulkSwapApproved) { skipped.push(i + 1); continue; }
+        const lum = 0.299*fg[0]+0.587*fg[1]+0.114*fg[2];
+        bg = lum > 140 ? [0,0,0] : [255,255,255];
+        swappedLayers.push(i + 1);
+      } else if (resolved.swapped) {
+        swappedLayers.push(i + 1);
+      }
       if (format === "png") {
         const img = renderLayerIsolated(labels, palette, workData.width, workData.height, i, bg);
         const c = scaleToOutput(img);
@@ -800,24 +823,34 @@ export function StencilMaker() {
       } else {
         const scaled = buildIsolatedScaledImageData(i);
         if (!scaled) continue;
-        const svg = traceLayerToSvg(scaled, palette[i], { background: bg });
+        const svg = traceLayerToSvg(scaled, fg, { background: bg });
         zip.file(`layer-${String(i + 1).padStart(2, "0")}.svg`, svg);
       }
     }
     if (includeSilhouette) {
-      const { rgb: bg, swapped } = safeBgFor([0, 0, 0]);
-      if (swapped) swappedLayers.push(palette.length + 1);
-      if (format === "png") {
-        const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], bg);
-        const c = scaleToOutput(img);
-        const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
-        zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.png`, blob);
-      } else {
-        const scaled = buildSilhouetteScaledImageData();
-        if (scaled) {
-          const svg = traceSilhouetteToSvg(scaled, { background: bg });
-          zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+      const resolved = resolveExportBg([0, 0, 0]);
+      let bg = resolved.rgb;
+      let include = true;
+      if (resolved.blocked) {
+        if (!bulkSwapApproved) { include = false; skipped.push(palette.length + 1); }
+        else { bg = [255, 255, 255]; swappedLayers.push(palette.length + 1); }
+      } else if (resolved.swapped) {
+        swappedLayers.push(palette.length + 1);
+      }
+      if (include) {
+        if (format === "png") {
+          const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], bg);
+          const c = scaleToOutput(img);
+          const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
+          zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.png`, blob);
+        } else {
+          const scaled = buildSilhouetteScaledImageData();
+          if (scaled) {
+            const svg = traceSilhouetteToSvg(scaled, { background: bg });
+            zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+          }
         }
+
       }
     }
     if (swappedLayers.length) {
