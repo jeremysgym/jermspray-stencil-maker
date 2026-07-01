@@ -571,6 +571,9 @@ export function StencilMaker() {
 
   // Render an isolated layer at output resolution with a transparent background
   // so it can be vector-traced cleanly (Cricut / Silhouette friendly).
+  // Applies:
+  //   - `bleedPx` outward dilation (grows color layers to close inter-layer gaps).
+  //   - `bridgePx` structural bridges through fully-enclosed holes.
   const buildIsolatedScaledImageData = (layerIdx: number): ImageData | null => {
     if (!workData || !labels) return null;
     const img = renderLayerIsolated(labels, palette, workData.width, workData.height, layerIdx, null);
@@ -581,9 +584,15 @@ export function StencilMaker() {
     const ctx = c.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(src, 0, 0, outWidth, outHeight);
-    return ctx.getImageData(0, 0, outWidth, outHeight);
+    let out = ctx.getImageData(0, 0, outWidth, outHeight);
+    if (bleedPx > 0) out = dilateLayer(out, bleedPx, palette[layerIdx]);
+    if (bridgePx > 0) out = applyAutoBridges(out, bridgePx);
+    return out;
   };
 
+  // Silhouette is the "black outline" layer — bleed is intentionally skipped
+  // per stencil design rules, but auto-bridging still applies so the outline
+  // stays physically connected around interior holes.
   const buildSilhouetteScaledImageData = (): ImageData | null => {
     if (!workData || !labels) return null;
     const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], null);
@@ -594,8 +603,11 @@ export function StencilMaker() {
     const ctx = c.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(src, 0, 0, outWidth, outHeight);
-    return ctx.getImageData(0, 0, outWidth, outHeight);
+    let out = ctx.getImageData(0, 0, outWidth, outHeight);
+    if (bridgePx > 0) out = applyAutoBridges(out, bridgePx);
+    return out;
   };
+
 
   const downloadLayer = async (layerIdx: number, format: "png" | "svg") => {
     const img = buildLayerImageData(layerIdx, true);
