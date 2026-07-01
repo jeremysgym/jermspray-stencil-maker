@@ -136,11 +136,13 @@ function BgEditor({
   open,
   onOpenChange,
   source,
+  tolerance,
   onApply,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   source: ImageData | null;
+  tolerance: number;
   onApply: (mask: Uint8Array) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -153,13 +155,18 @@ function BgEditor({
   useEffect(() => {
     if (!open || !source) return;
     baseRef.current = source;
-    const mask = detectAndRemoveBackground(source.data, source.width, source.height, 36);
+    // Map the app-level 0-60 white-tolerance slider onto the flood-fill tolerance,
+    // with a sensible minimum so pure-white detection still works when the
+    // slider is at zero.
+    const tol = Math.max(20, tolerance || 0);
+    const mask = detectAndRemoveBackground(source.data, source.width, source.height, tol);
     maskRef.current = mask;
     // Wait a frame so the dialog content is mounted before drawing.
     const raf = requestAnimationFrame(() => redraw());
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, source]);
+  }, [open, source, tolerance]);
+
 
   const redraw = useCallback(() => {
     const c = canvasRef.current;
