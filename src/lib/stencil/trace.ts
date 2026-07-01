@@ -140,10 +140,12 @@ export function traceLayerToSvg(
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw: string = (ImageTracer as any).imagedataToSVG(layer, options);
-  const bg =
-    opts.background == null ? null : toRgb(opts.background);
-  return normalizeSvg(raw, layer.width, layer.height, color, bg);
+  // `background` in TraceOptions is retained for API compatibility but
+  // intentionally ignored — SVG exports always have a transparent root.
+  void opts.background;
+  return normalizeSvg(raw, layer.width, layer.height, color);
 }
+
 
 export function traceSilhouetteToSvg(
   layer: ImageData,
