@@ -317,11 +317,17 @@ export function StencilMaker() {
   const [outHeight, setOutHeight] = useState(800);
   const [aspect, setAspect] = useState(1);
 
+  // Stencil tuning
+  const [bleedPx, setBleedPx] = useState(0);       // 0-8 px outward grow per color layer
+  const [whiteTol, setWhiteTol] = useState(0);     // 0-60 near-white skip tolerance
+  const [bridgePx, setBridgePx] = useState(0);     // 0-40 px auto-bridge width (~1mm ≈ 4px)
+
   // Markers
   const [markersEnabled, setMarkersEnabled] = useState(false);
   const [markerCorners, setMarkerCorners] = useState({ tl: true, tr: true, bl: true, br: true });
   const [markerSize, setMarkerSize] = useState(20);
   const [markerInset, setMarkerInset] = useState(24);
+
 
   // Zoom dialog
   const [zoomLayer, setZoomLayer] = useState<number | null>(null);
