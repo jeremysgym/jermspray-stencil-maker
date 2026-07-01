@@ -1175,6 +1175,81 @@ export function StencilMaker() {
                   </Label>
                 </div>
 
+                {/* Stencil tuning: bleed / white tolerance / auto bridging */}
+                <div className="space-y-3 border-t pt-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Label className="min-w-[130px] text-xs">
+                      Bleed <span className="opacity-60">(color layers)</span>
+                    </Label>
+                    <Slider
+                      value={[bleedPx]}
+                      min={0}
+                      max={8}
+                      step={1}
+                      onValueChange={(v) => setBleedPx(v[0])}
+                      className="flex-1 min-w-[140px]"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={8}
+                      value={bleedPx}
+                      onChange={(e) => setBleedPx(Math.max(0, Math.min(8, Number(e.target.value) || 0)))}
+                      className="w-20"
+                    />
+                    <span className="text-[11px] text-muted-foreground w-full">
+                      Grows color layers outward by {bleedPx}px to eliminate gaps between stencils. Black outline / silhouette is unaffected.
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Label className="min-w-[130px] text-xs">White tolerance</Label>
+                    <Slider
+                      value={[whiteTol]}
+                      min={0}
+                      max={60}
+                      step={1}
+                      onValueChange={(v) => setWhiteTol(v[0])}
+                      className="flex-1 min-w-[140px]"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={60}
+                      value={whiteTol}
+                      onChange={(e) => setWhiteTol(Math.max(0, Math.min(60, Number(e.target.value) || 0)))}
+                      className="w-20"
+                    />
+                    <span className="text-[11px] text-muted-foreground w-full">
+                      Skips near-white pixels during background removal + quantization ({whiteTol === 0 ? "off" : `≥ ${255 - whiteTol}`}).
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Label className="min-w-[130px] text-xs">Bridge width</Label>
+                    <Slider
+                      value={[bridgePx]}
+                      min={0}
+                      max={40}
+                      step={1}
+                      onValueChange={(v) => setBridgePx(v[0])}
+                      className="flex-1 min-w-[140px]"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={40}
+                      value={bridgePx}
+                      onChange={(e) => setBridgePx(Math.max(0, Math.min(40, Number(e.target.value) || 0)))}
+                      className="w-20"
+                    />
+                    <span className="text-[11px] text-muted-foreground w-full">
+                      Auto-bridges enclosed islands with {bridgePx}px cuts (~{(bridgePx / 4).toFixed(1)}mm at 96 DPI). 0 = off. Applied per layer at export.
+                    </span>
+                  </div>
+                </div>
+
+
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
