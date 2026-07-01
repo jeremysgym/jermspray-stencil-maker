@@ -55,14 +55,14 @@ export function colorsConflict(a: RGB | string, b: RGB | string, tol = 12): bool
  * - Explicit width/height in px (Cricut imports at 96 DPI)
  * - viewBox in source pixel units (1:1 with width/height)
  * - All paths forced to the requested fill, no strokes, no transparent fills
- * - Optional background <rect>, automatically dropped if it equals the layer
+ * - Root <svg> gets `fill="none"` and no background <rect> — transparent bg
+ *   so only foreground vector paths are exported.
  */
 function normalizeSvg(
   svg: string,
   width: number,
   height: number,
   color: RGB,
-  background: RGB | null,
 ): string {
   let out = svg;
 
@@ -77,6 +77,15 @@ function normalizeSvg(
   );
   out = out.replace(/<path\b[^>]*fill-opacity="0"[^>]*\/>/gi, "");
 
+  // Remove any full-canvas background rects the tracer may have emitted.
+  out = out.replace(
+    new RegExp(
+      `<rect\\b[^>]*width="${width}"[^>]*height="${height}"[^>]*\\/>`,
+      "gi",
+    ),
+    "",
+  );
+
   // Normalize remaining path fills to the exact requested hex color; no stroke.
   const hex = rgbHex(color);
   out = out.replace(/fill="rgba\([^"]*\)"/gi, `fill="${hex}"`);
@@ -86,29 +95,21 @@ function normalizeSvg(
   out = out.replace(/\sstroke-width="[^"]*"/gi, "");
   out = out.replace(/\sstroke-opacity="[^"]*"/gi, "");
 
-  // Rebuild the opening <svg> tag with locked Cricut scaling.
+  // Rebuild the opening <svg> tag with locked Cricut scaling + transparent root.
   out = out.replace(/<svg\b[^>]*>/i, () =>
     `<svg xmlns="http://www.w3.org/2000/svg" ` +
     `xmlns:xlink="http://www.w3.org/1999/xlink" ` +
     `width="${width}px" height="${height}px" ` +
-    `viewBox="0 0 ${width} ${height}">`,
+    `viewBox="0 0 ${width} ${height}" ` +
+    `fill="none">`,
   );
-
-  // Inject background rect *after* the opening tag (so paths render on top).
-  // Skip when it would match the layer color — keeps the cut visible.
-  if (background && !colorsConflict(background, color)) {
-    const bgHex = rgbHex(background);
-    out = out.replace(
-      /(<svg\b[^>]*>)/i,
-      `$1<rect x="0" y="0" width="${width}" height="${height}" fill="${bgHex}"/>`,
-    );
-  }
 
   if (!out.startsWith("<?xml")) {
     out = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + out;
   }
   return out;
 }
+
 
 export function traceLayerToSvg(
   layer: ImageData,
