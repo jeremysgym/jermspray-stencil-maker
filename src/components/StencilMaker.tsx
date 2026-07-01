@@ -53,8 +53,10 @@ import {
 import { detectAndRemoveBackground } from "@/lib/stencil/bg-removal";
 import { nameForHex } from "@/lib/stencil/color-name";
 import { traceLayerToSvg, traceSilhouetteToSvg, colorsConflict } from "@/lib/stencil/trace";
+import { dilateLayer, applyAutoBridges, buildNearWhiteMask } from "@/lib/stencil/mask-ops";
 import { ZoomPanImage } from "@/components/ZoomPanImage";
 import { toast } from "sonner";
+
 
 function randomProjectName() {
   const n = Math.floor(1000 + Math.random() * 9000);
@@ -134,11 +136,13 @@ function BgEditor({
   open,
   onOpenChange,
   source,
+  tolerance,
   onApply,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   source: ImageData | null;
+  tolerance: number;
   onApply: (mask: Uint8Array) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -151,13 +155,18 @@ function BgEditor({
   useEffect(() => {
     if (!open || !source) return;
     baseRef.current = source;
-    const mask = detectAndRemoveBackground(source.data, source.width, source.height, 36);
+    // Map the app-level 0-60 white-tolerance slider onto the flood-fill tolerance,
+    // with a sensible minimum so pure-white detection still works when the
+    // slider is at zero.
+    const tol = Math.max(20, tolerance || 0);
+    const mask = detectAndRemoveBackground(source.data, source.width, source.height, tol);
     maskRef.current = mask;
     // Wait a frame so the dialog content is mounted before drawing.
     const raf = requestAnimationFrame(() => redraw());
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, source]);
+  }, [open, source, tolerance]);
+
 
   const redraw = useCallback(() => {
     const c = canvasRef.current;
@@ -308,11 +317,17 @@ export function StencilMaker() {
   const [outHeight, setOutHeight] = useState(800);
   const [aspect, setAspect] = useState(1);
 
+  // Stencil tuning
+  const [bleedPx, setBleedPx] = useState(0);       // 0-8 px outward grow per color layer
+  const [whiteTol, setWhiteTol] = useState(0);     // 0-60 near-white skip tolerance
+  const [bridgePx, setBridgePx] = useState(0);     // 0-40 px auto-bridge width (~1mm ≈ 4px)
+
   // Markers
   const [markersEnabled, setMarkersEnabled] = useState(false);
   const [markerCorners, setMarkerCorners] = useState({ tl: true, tr: true, bl: true, br: true });
   const [markerSize, setMarkerSize] = useState(20);
   const [markerInset, setMarkerInset] = useState(24);
+
 
   // Zoom dialog
   const [zoomLayer, setZoomLayer] = useState<number | null>(null);
@@ -377,6 +392,23 @@ export function StencilMaker() {
     img.src = url;
   }, []);
 
+  // Combine the manually-painted bg-removal mask with the near-white skip mask
+  // (both optional). Whichever discards a pixel wins.
+  const effectiveMask = useMemo(() => {
+    if (!workData) return undefined;
+    const manual = bgRemovalEnabled ? mask ?? null : null;
+    const auto = buildNearWhiteMask(workData.data, workData.width, workData.height, whiteTol);
+    if (!manual && !auto) return undefined;
+    const n = workData.width * workData.height;
+    const out = new Uint8Array(n);
+    for (let p = 0; p < n; p++) {
+      const m = manual ? manual[p] : 1;
+      const a = auto ? auto[p] : 1;
+      out[p] = m && a ? 1 : 0;
+    }
+    return out;
+  }, [workData, mask, bgRemovalEnabled, whiteTol]);
+
   // --- Quantize whenever inputs change ---
   useEffect(() => {
     if (!workData) return;
@@ -386,14 +418,15 @@ export function StencilMaker() {
         workData.width,
         workData.height,
         numLayers,
-        bgRemovalEnabled ? mask ?? undefined : undefined,
+        effectiveMask,
       );
       setPalette(result.palette);
       setLabels(result.labels);
       setHiddenLayers(new Set());
     }, 30);
     return () => clearTimeout(t);
-  }, [workData, numLayers, mask, bgRemovalEnabled]);
+  }, [workData, numLayers, effectiveMask]);
+
 
   // Preview rendering
   const previewUrl = useMemo(() => {
@@ -538,6 +571,9 @@ export function StencilMaker() {
 
   // Render an isolated layer at output resolution with a transparent background
   // so it can be vector-traced cleanly (Cricut / Silhouette friendly).
+  // Applies:
+  //   - `bleedPx` outward dilation (grows color layers to close inter-layer gaps).
+  //   - `bridgePx` structural bridges through fully-enclosed holes.
   const buildIsolatedScaledImageData = (layerIdx: number): ImageData | null => {
     if (!workData || !labels) return null;
     const img = renderLayerIsolated(labels, palette, workData.width, workData.height, layerIdx, null);
@@ -548,9 +584,15 @@ export function StencilMaker() {
     const ctx = c.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(src, 0, 0, outWidth, outHeight);
-    return ctx.getImageData(0, 0, outWidth, outHeight);
+    let out = ctx.getImageData(0, 0, outWidth, outHeight);
+    if (bleedPx > 0) out = dilateLayer(out, bleedPx, palette[layerIdx]);
+    if (bridgePx > 0) out = applyAutoBridges(out, bridgePx);
+    return out;
   };
 
+  // Silhouette is the "black outline" layer — bleed is intentionally skipped
+  // per stencil design rules, but auto-bridging still applies so the outline
+  // stays physically connected around interior holes.
   const buildSilhouetteScaledImageData = (): ImageData | null => {
     if (!workData || !labels) return null;
     const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], null);
@@ -561,8 +603,11 @@ export function StencilMaker() {
     const ctx = c.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(src, 0, 0, outWidth, outHeight);
-    return ctx.getImageData(0, 0, outWidth, outHeight);
+    let out = ctx.getImageData(0, 0, outWidth, outHeight);
+    if (bridgePx > 0) out = applyAutoBridges(out, bridgePx);
+    return out;
   };
+
 
   const downloadLayer = async (layerIdx: number, format: "png" | "svg") => {
     const img = buildLayerImageData(layerIdx, true);
@@ -1094,8 +1139,10 @@ export function StencilMaker() {
           open={bgEditorOpen}
           onOpenChange={setBgEditorOpen}
           source={sourceData}
+          tolerance={whiteTol}
           onApply={(m) => setMask(m)}
         />
+
 
         {workData && (
           <>
@@ -1127,6 +1174,81 @@ export function StencilMaker() {
                     Add full silhouette layer (not blended into preview)
                   </Label>
                 </div>
+
+                {/* Stencil tuning: bleed / white tolerance / auto bridging */}
+                <div className="space-y-3 border-t pt-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Label className="min-w-[130px] text-xs">
+                      Bleed <span className="opacity-60">(color layers)</span>
+                    </Label>
+                    <Slider
+                      value={[bleedPx]}
+                      min={0}
+                      max={8}
+                      step={1}
+                      onValueChange={(v) => setBleedPx(v[0])}
+                      className="flex-1 min-w-[140px]"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={8}
+                      value={bleedPx}
+                      onChange={(e) => setBleedPx(Math.max(0, Math.min(8, Number(e.target.value) || 0)))}
+                      className="w-20"
+                    />
+                    <span className="text-[11px] text-muted-foreground w-full">
+                      Grows color layers outward by {bleedPx}px to eliminate gaps between stencils. Black outline / silhouette is unaffected.
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Label className="min-w-[130px] text-xs">White tolerance</Label>
+                    <Slider
+                      value={[whiteTol]}
+                      min={0}
+                      max={60}
+                      step={1}
+                      onValueChange={(v) => setWhiteTol(v[0])}
+                      className="flex-1 min-w-[140px]"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={60}
+                      value={whiteTol}
+                      onChange={(e) => setWhiteTol(Math.max(0, Math.min(60, Number(e.target.value) || 0)))}
+                      className="w-20"
+                    />
+                    <span className="text-[11px] text-muted-foreground w-full">
+                      Skips near-white pixels during background removal + quantization ({whiteTol === 0 ? "off" : `≥ ${255 - whiteTol}`}).
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Label className="min-w-[130px] text-xs">Bridge width</Label>
+                    <Slider
+                      value={[bridgePx]}
+                      min={0}
+                      max={40}
+                      step={1}
+                      onValueChange={(v) => setBridgePx(v[0])}
+                      className="flex-1 min-w-[140px]"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={40}
+                      value={bridgePx}
+                      onChange={(e) => setBridgePx(Math.max(0, Math.min(40, Number(e.target.value) || 0)))}
+                      className="w-20"
+                    />
+                    <span className="text-[11px] text-muted-foreground w-full">
+                      Auto-bridges enclosed islands with {bridgePx}px cuts (~{(bridgePx / 4).toFixed(1)}mm at 96 DPI). 0 = off. Applied per layer at export.
+                    </span>
+                  </div>
+                </div>
+
 
 
                 <div className="grid grid-cols-2 gap-3">
