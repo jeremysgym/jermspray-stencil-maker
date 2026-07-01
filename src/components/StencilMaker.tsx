@@ -1139,8 +1139,10 @@ export function StencilMaker() {
           open={bgEditorOpen}
           onOpenChange={setBgEditorOpen}
           source={sourceData}
+          tolerance={whiteTol}
           onApply={(m) => setMask(m)}
         />
+
 
         {workData && (
           <>
