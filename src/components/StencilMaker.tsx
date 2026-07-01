@@ -392,6 +392,23 @@ export function StencilMaker() {
     img.src = url;
   }, []);
 
+  // Combine the manually-painted bg-removal mask with the near-white skip mask
+  // (both optional). Whichever discards a pixel wins.
+  const effectiveMask = useMemo(() => {
+    if (!workData) return undefined;
+    const manual = bgRemovalEnabled ? mask ?? null : null;
+    const auto = buildNearWhiteMask(workData.data, workData.width, workData.height, whiteTol);
+    if (!manual && !auto) return undefined;
+    const n = workData.width * workData.height;
+    const out = new Uint8Array(n);
+    for (let p = 0; p < n; p++) {
+      const m = manual ? manual[p] : 1;
+      const a = auto ? auto[p] : 1;
+      out[p] = m && a ? 1 : 0;
+    }
+    return out;
+  }, [workData, mask, bgRemovalEnabled, whiteTol]);
+
   // --- Quantize whenever inputs change ---
   useEffect(() => {
     if (!workData) return;
@@ -401,14 +418,15 @@ export function StencilMaker() {
         workData.width,
         workData.height,
         numLayers,
-        bgRemovalEnabled ? mask ?? undefined : undefined,
+        effectiveMask,
       );
       setPalette(result.palette);
       setLabels(result.labels);
       setHiddenLayers(new Set());
     }, 30);
     return () => clearTimeout(t);
-  }, [workData, numLayers, mask, bgRemovalEnabled]);
+  }, [workData, numLayers, effectiveMask]);
+
 
   // Preview rendering
   const previewUrl = useMemo(() => {
