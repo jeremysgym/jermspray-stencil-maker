@@ -422,12 +422,26 @@ export function StencilMaker() {
         numLayers,
         effectiveMask,
       );
+      let labels = result.labels;
+      // DETAIL CLEANUP: strip tiny uncuttable specks. Higher = more aggressive.
+      // Strength 0 = no cleanup; 100 removes components up to ~1.5% of canvas.
+      if (cleanupStrength > 0) {
+        const total = workData.width * workData.height;
+        const minArea = Math.max(2, Math.round((cleanupStrength / 100) * total * 0.015));
+        const closeR = cleanupStrength >= 66 ? 2 : cleanupStrength >= 33 ? 1 : 0;
+        const openR = cleanupStrength >= 50 ? 1 : 0;
+        labels = cleanupLabels(labels, workData.width, workData.height, result.palette.length, {
+          minArea,
+          closeRadius: closeR,
+          openRadius: openR,
+        });
+      }
       setPalette(result.palette);
-      setLabels(result.labels);
+      setLabels(labels);
       setHiddenLayers(new Set());
     }, 30);
     return () => clearTimeout(t);
-  }, [workData, numLayers, effectiveMask]);
+  }, [workData, numLayers, effectiveMask, cleanupStrength]);
 
 
   // Preview rendering
