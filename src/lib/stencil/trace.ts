@@ -58,13 +58,6 @@ export function colorsConflict(a: RGB | string, b: RGB | string, tol = 12): bool
  */
 import type { RGB } from "./quantize";
 
-function rgbHex({ r, g, b }: RGB): string {
-  return (
-    "#" +
-    [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("")
-  );
-}
-
 /**
  * Cricut-safe SVG normalizer (stable DOM version)
  */
