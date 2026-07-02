@@ -1,7 +1,7 @@
-import * as svgo from "svgo";
+import { optimize } from "svgo";
 
 export function optimizeSvg(svg: string): string {
-  const result = svgo.optimize(svg, {
+  const result = optimize(svg, {
     multipass: true,
     plugins: [
       {
@@ -12,8 +12,8 @@ export function optimizeSvg(svg: string): string {
           },
         },
       },
-      { name: "removeComments" },
-      { name: "removeMetadata" },
+      "removeComments",
+      "removeMetadata",
     ],
   });
 
