@@ -65,17 +65,26 @@ function normalizeSvg(
   color: RGB,
 ): string {
   let out = svg;
+  const hex = rgbHex(color);
 
+  // Strip metadata that some SVG parsers choke on.
   out = out.replace(/<desc[\s\S]*?<\/desc>/gi, "");
   out = out.replace(/<!--[\s\S]*?-->/g, "");
 
-  // Remove transparent-fill paths (background palette entry) so Cricut
-  // doesn't pick them up as invisible cut lines.
+  // Delete any <path> that represents the transparent palette entry.
+  // imagetracerjs emits it as `fill="rgb(255,255,255)" ... opacity="0"`,
+  // NOT rgba — so match on `opacity="0"` (also covers `fill-opacity="0"`).
+  // If we don't strip this, the next step rewrites its fill to the layer
+  // hex and Cricut renders it as a full-canvas colored rectangle,
+  // hiding the actual stencil shapes.
+  out = out.replace(
+    /<path\b[^>]*\s(?:fill-)?opacity="0(?:\.0+)?"[^>]*\/>/gi,
+    "",
+  );
   out = out.replace(
     /<path\b[^>]*fill="rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0(?:\.0+)?\s*\)"[^>]*\/>/gi,
     "",
   );
-  out = out.replace(/<path\b[^>]*fill-opacity="0"[^>]*\/>/gi, "");
 
   // Remove any full-canvas background rects the tracer may have emitted.
   out = out.replace(
@@ -86,19 +95,19 @@ function normalizeSvg(
     "",
   );
 
-  // Normalize remaining path fills to the exact requested hex color; no stroke.
-  const hex = rgbHex(color);
+  // Normalize remaining path fills to the exact requested hex color and
+  // strip stroke / opacity attributes that could hide or recolor paths.
   out = out.replace(/fill="rgba\([^"]*\)"/gi, `fill="${hex}"`);
   out = out.replace(/fill="rgb\([^"]*\)"/gi, `fill="${hex}"`);
   out = out.replace(/\sfill-opacity="[^"]*"/gi, "");
+  out = out.replace(/\sopacity="[^"]*"/gi, "");
   out = out.replace(/\sstroke="[^"]*"/gi, "");
   out = out.replace(/\sstroke-width="[^"]*"/gi, "");
   out = out.replace(/\sstroke-opacity="[^"]*"/gi, "");
 
-  // Guarantee every <path> carries explicit inline fill + stroke attributes.
-  // Cricut Design Space (and some other importers) render paths without an
-  // inline fill as solid black — they don't inherit from the root <svg>.
-  // Forcing `fill="#hex" stroke="none"` on each path avoids that fallback.
+  // Guarantee every remaining <path> carries explicit inline fill + stroke.
+  // Cricut Design Space renders paths without inline fill as solid black
+  // and doesn't inherit from the root <svg>.
   out = out.replace(/<path\b([^>]*?)(\/?)>/gi, (_m, attrs: string, close: string) => {
     let a = attrs;
     if (!/\bfill\s*=/.test(a)) a = ` fill="${hex}"` + a;
@@ -106,9 +115,8 @@ function normalizeSvg(
     return `<path${a}${close}>`;
   });
 
-  // Rebuild the opening <svg> tag with locked Cricut scaling. No root `fill`
-  // so nothing can force paths invisible — every path has its own inline fill.
-  // Background stays transparent (no <rect> emitted).
+  // Rebuild the opening <svg> tag with locked Cricut scaling; no root fill
+  // (each path has its own inline fill). Background stays transparent.
   out = out.replace(/<svg\b[^>]*>/i, () =>
     `<svg xmlns="http://www.w3.org/2000/svg" ` +
     `xmlns:xlink="http://www.w3.org/1999/xlink" ` +
@@ -116,12 +124,43 @@ function normalizeSvg(
     `viewBox="0 0 ${width} ${height}">`,
   );
 
-
   if (!out.startsWith("<?xml")) {
     out = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + out;
   }
   return out;
 }
+
+/**
+ * Validate a generated Cricut SVG before download:
+ *  - at least one <path> element remains
+ *  - every <path>, <rect>, <circle>, <polygon> has an inline fill
+ *    (either "#..." or "none") and inline stroke attribute
+ *  - no leftover rgb()/rgba() fills — those signal an unnormalized element
+ * Throws with a descriptive message on failure.
+ */
+export function validateExportSvg(svg: string): void {
+  const pathCount = (svg.match(/<path\b/gi) || []).length;
+  if (pathCount === 0) {
+    throw new Error("SVG has no <path> elements — the export would be empty.");
+  }
+  const shapeRe = /<(path|rect|circle|ellipse|polygon|polyline)\b([^>]*)>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = shapeRe.exec(svg)) !== null) {
+    const attrs = m[2];
+    if (!/\bfill\s*=\s*"(?:#[0-9a-f]{3,8}|none)"/i.test(attrs)) {
+      throw new Error(
+        `<${m[1]}> is missing an explicit inline fill (must be "#HEX" or "none").`,
+      );
+    }
+    if (!/\bstroke\s*=/i.test(attrs)) {
+      throw new Error(`<${m[1]}> is missing an explicit inline stroke attribute.`);
+    }
+    if (/fill\s*=\s*"rgba?\(/i.test(attrs)) {
+      throw new Error(`<${m[1]}> still has a non-hex rgb() fill after normalization.`);
+    }
+  }
+}
+
 
 
 export function traceLayerToSvg(
