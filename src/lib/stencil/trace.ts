@@ -226,6 +226,12 @@ out = out.replace(/<path[^>]*d="[^"]{20000,}"[^>]*>/g, "");
 
   let svg = normalizeSvg(raw, imageData.width, imageData.height, color);
 
+import { optimizeSvg } from "./svgo";
+import { normalizeSvg } from "./normalizeSvg";;
+
+svg = normalizeSvg(svg, width, height, color);
+svg = optimizeSvg(svg);
+
   if (background != null) {
     const bgHex = rgbHex(toRgb(background));
     svg = svg.replace(
