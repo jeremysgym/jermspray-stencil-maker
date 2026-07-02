@@ -68,9 +68,13 @@ let out = svg;
 
 // Remove comments / metadata 
 out = out.replace(/<desc[\s\S]*?<\/desc>/gi, ""); 
-out = out.replace(/<!--[\s\S]*?-->/g, "");
+out = out.replace(/<!--[\s\S]*?-->/// 🚨 HARD FIX: remove ANY path with opacity="0"
+out = out.replace(
+  /<path\b[^>]*opacity="0"[^>]*\/?>/gi,
+  ""
+);
 
-// 🚨 HARD FIX: remove ANY path with opacity = 0 (opening or self-closing) 
+
 out = out.replace( 
 /<path\b[^>]opacity="0[^"]"[^>]*/?>/gi, 
 "" 
