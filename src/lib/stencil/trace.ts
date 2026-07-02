@@ -56,15 +56,79 @@ export function colorsConflict(a: RGB | string, b: RGB | string, tol = 12): bool
  * - Root <svg> gets no background rect by default — transparent bg
  *   so only foreground vector paths are exported.
  */
-function normalizeSvg(
-  svg: string,
-  width: number,
-  height: number,
-  color: RGB,
-): string {
-  let out = svg;
-  const hex = rgbHex(color);
+function normalizeSvg( 
+svg: string, 
+width: number, 
+height: number, 
+color: RGB, 
+): string { 
+const hex = rgbHex(color);
 
+let out = svg;
+
+// Remove comments / metadata 
+out = out.replace(/<desc[\s\S]*?</desc>/gi, ""); 
+out = out.replace(/<!--[\s\S]*?-->/g, "");
+
+// 🚨 HARD FIX: remove ANY path with opacity = 0 (opening or self-closing) 
+out = out.replace( 
+/<path\b[^>]opacity="0[^"]"[^>]*/?>/gi, 
+"" 
+);
+
+out = out.replace( 
+/<path\b[^>]fill-opacity="0[^"]"[^>]*/?>/gi, 
+"" 
+);
+
+// Remove full-canvas rectangles (background artifacts) 
+out = out.replace( 
+/<rect\b[^>]*width="?\d+"?[^>]height="?\d+"?[^>]/>/gi, 
+"" 
+);
+
+// 🚨 DO NOT blindly recolor everything 
+// Instead only set fill IF it is a valid color path (has d attribute) 
+out = out.replace( 
+/<path\b(?![^>]opacity="0")[^>]>/gi, 
+(match) => { 
+// remove stroke noise 
+let cleaned = match 
+.replace(/\sstroke="[^"]"/g, "") 
+.replace(/\sstroke-width="[^"]"/g, "") 
+.replace(/\sfill-opacity="[^"]"/g, "") 
+.replace(/\sopacity="[^"]"/g, "");
+
+  // ensure fill exists
+  if (!/fill=/.test(cleaned)) {
+    cleaned = cleaned.replace("<path", `<path fill="${hex}"`);
+  } else {
+    cleaned = cleaned.replace(/fill="[^"]*"/, `fill="${hex}"`);
+  }
+
+  // ensure no stroke
+  if (!/stroke=/.test(cleaned)) {
+    cleaned = cleaned.replace("<path", `<path stroke="none"`);
+  }
+
+  return cleaned;
+}
+);
+
+// Fix SVG root 
+out = out.replace( 
+/<svg\b[^>]*>/i, 
+() => 
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}px" height="${height}px" viewBox="0 0 ${width} ${height}"> 
+);
+
+if (!out.startsWith("<?xml")) {
+out = `<?xml version="1.0" encoding="UTF-8"?>\n` + out; 
+}
+
+
+return out; 
+}
   // Strip metadata that some SVG parsers choke on.
   out = out.replace(/<desc[\s\S]*?<\/desc>/gi, "");
   out = out.replace(/<!--[\s\S]*?-->/g, "");
