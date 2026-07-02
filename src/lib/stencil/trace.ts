@@ -199,18 +199,22 @@ function traceCore(
   const { ltres = 1, qtres = 1, pathomit = 8, scale = 1, background = null } = options;
 
   const raw = ImageTracer.imagedataToSVG(imageData, {
-    ltres,
-    qtres,
-    pathomit,
-    scale,
-    // Force a 2-color palette (transparent + the layer color) so the
-    // tracer doesn't quantize/anti-alias into extra shades.
-    numberofcolors: 2,
-    pal: [
-      { r: 255, g: 255, b: 255, a: 0 },
-      { r: color[0], g: color[1], b: color[2], a: 255 },
-    ],
-  });
+  ltres,
+  qtres,
+  pathomit,
+  scale,
+
+  // IMPORTANT: allow real shape separation
+  numberofcolors: 12,
+
+  // prevent smoothing into blobs
+  colorquantcycles: 2,
+
+  // keep edges sharp for cutting
+  strokewidth: 0,
+});
+
+out = out.replace(/<path[^>]*d="[^"]{20000,}"[^>]*>/g, "");
 
   let svg = normalizeSvg(raw, imageData.width, imageData.height, color);
 
