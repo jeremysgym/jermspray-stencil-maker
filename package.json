@@ -1,6 +1,5 @@
 {
-  "name": "jermspray-stencil-maker",
-  "version": "0.0.0",
+  
   "dependencies": {
     "imagetracerjs": "^1.2.6",
     "jszip": "^3.10.1",
