@@ -1488,8 +1488,52 @@ export function StencilMaker() {
                         />
                       </div>
                       <div className="flex items-center gap-3">
-                        <Label className="min-w-[110px] text-xs">Distance</Label>
+                        <Label className="min-w-[110px] text-xs">Line thickness</Label>
+                        <Slider value={[markerLineWidth]} min={1} max={10} step={1} onValueChange={(v) => setMarkerLineWidth(v[0])} />
+                        <Input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={markerLineWidth}
+                          onChange={(e) => setMarkerLineWidth(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                          className="w-20"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Label className="min-w-[110px] text-xs">Side distance</Label>
                         <Slider value={[markerInset]} min={0} max={200} step={1} onValueChange={(v) => setMarkerInset(v[0])} />
+                        <Input
+                          type="number"
+                          value={markerInset}
+                          onChange={(e) => setMarkerInset(Math.max(0, Number(e.target.value) || 0))}
+                          className="w-20"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Label className="min-w-[110px] text-xs">Top distance</Label>
+                        <Slider value={[markerInsetTop]} min={0} max={400} step={1} onValueChange={(v) => setMarkerInsetTop(v[0])} />
+                        <Input
+                          type="number"
+                          value={markerInsetTop}
+                          onChange={(e) => setMarkerInsetTop(Math.max(0, Number(e.target.value) || 0))}
+                          className="w-20"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Label className="min-w-[110px] text-xs">Bottom distance</Label>
+                        <Slider value={[markerInsetBottom]} min={0} max={400} step={1} onValueChange={(v) => setMarkerInsetBottom(v[0])} />
+                        <Input
+                          type="number"
+                          value={markerInsetBottom}
+                          onChange={(e) => setMarkerInsetBottom(Math.max(0, Number(e.target.value) || 0))}
+                          className="w-20"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Switch id="mark-layers" checked={markersOnLayers} onCheckedChange={setMarkersOnLayers} />
+                        <Label htmlFor="mark-layers" className="cursor-pointer text-xs">
+                          Show markers on each individual layer export
+                        </Label>
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Corners</Label>
