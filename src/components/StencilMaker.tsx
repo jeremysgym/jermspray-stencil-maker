@@ -108,19 +108,22 @@ function drawMarkers(
   width: number,
   height: number,
   size: number,
-  inset: number,
+  insetSide: number,
+  insetTop: number,
+  insetBottom: number,
   corners: { tl: boolean; tr: boolean; bl: boolean; br: boolean },
+  lineWidth: number,
   color = "#000",
 ) {
   ctx.save();
   ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1, size / 8);
+  ctx.lineWidth = Math.max(1, lineWidth);
   ctx.lineCap = "round";
   const positions: Array<[number, number]> = [];
-  if (corners.tl) positions.push([inset, inset]);
-  if (corners.tr) positions.push([width - inset, inset]);
-  if (corners.bl) positions.push([inset, height - inset]);
-  if (corners.br) positions.push([width - inset, height - inset]);
+  if (corners.tl) positions.push([insetSide, insetTop]);
+  if (corners.tr) positions.push([width - insetSide, insetTop]);
+  if (corners.bl) positions.push([insetSide, height - insetBottom]);
+  if (corners.br) positions.push([width - insetSide, height - insetBottom]);
   for (const [x, y] of positions) {
     ctx.beginPath();
     ctx.moveTo(x - size / 2, y);
@@ -131,6 +134,7 @@ function drawMarkers(
   }
   ctx.restore();
 }
+
 
 // --- Background removal editing dialog ----------------------------------
 function BgEditor({
