@@ -611,12 +611,18 @@ export function StencilMaker() {
     let out = ctx.getImageData(0, 0, outWidth, outHeight);
     if (bleedPx > 0) out = dilateLayer(out, bleedPx, palette[layerIdx]);
     if (bridgePx > 0) out = applyAutoBridges(out, bridgePx);
+    // Draw corner markers on top so every exported layer aligns to the same
+    // registration crosses. Markers are rasterized in the layer's own color
+    // so they survive the single-color SVG trace.
+    if (markersEnabled && markersOnLayers) {
+      ctx.putImageData(out, 0, 0);
+      const hex = rgbToHex(palette[layerIdx]);
+      drawMarkers(ctx, outWidth, outHeight, markerSize, markerInset, markerInsetTop, markerInsetBottom, markerCorners, markerLineWidth, hex);
+      out = ctx.getImageData(0, 0, outWidth, outHeight);
+    }
     return out;
   };
 
-  // Silhouette is the "black outline" layer — bleed is intentionally skipped
-  // per stencil design rules, but auto-bridging still applies so the outline
-  // stays physically connected around interior holes.
   const buildSilhouetteScaledImageData = (): ImageData | null => {
     if (!workData || !labels) return null;
     const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], null);
@@ -629,6 +635,11 @@ export function StencilMaker() {
     ctx.drawImage(src, 0, 0, outWidth, outHeight);
     let out = ctx.getImageData(0, 0, outWidth, outHeight);
     if (bridgePx > 0) out = applyAutoBridges(out, bridgePx);
+    if (markersEnabled && markersOnLayers) {
+      ctx.putImageData(out, 0, 0);
+      drawMarkers(ctx, outWidth, outHeight, markerSize, markerInset, markerInsetTop, markerInsetBottom, markerCorners, markerLineWidth, "#000000");
+      out = ctx.getImageData(0, 0, outWidth, outHeight);
+    }
     return out;
   };
 
