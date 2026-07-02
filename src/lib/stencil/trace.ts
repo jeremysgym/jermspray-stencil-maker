@@ -67,7 +67,7 @@ const hex = rgbHex(color);
 let out = svg;
 
 // Remove comments / metadata 
-out = out.replace(/<desc[\s\S]*?</desc>/gi, ""); 
+out = out.replace(/<desc[\s\S]*?<\/desc>/gi, ""); 
 out = out.replace(/<!--[\s\S]*?-->/g, "");
 
 // 🚨 HARD FIX: remove ANY path with opacity = 0 (opening or self-closing) 
