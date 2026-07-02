@@ -675,6 +675,10 @@ export function StencilMaker() {
       const scaled = buildIsolatedScaledImageData(layerIdx);
       if (!scaled) return;
       const svg = traceLayerToSvg(scaled, fg, { background: bg });
+      try { validateExportSvg(svg); } catch (e) {
+        toast.error(`Layer ${layerIdx + 1} SVG failed validation: ${(e as Error).message}`);
+        return;
+      }
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-layer-${layerIdx + 1}.svg`);
     }
   };
