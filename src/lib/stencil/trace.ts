@@ -95,14 +95,27 @@ function normalizeSvg(
   out = out.replace(/\sstroke-width="[^"]*"/gi, "");
   out = out.replace(/\sstroke-opacity="[^"]*"/gi, "");
 
-  // Rebuild the opening <svg> tag with locked Cricut scaling + transparent root.
+  // Guarantee every <path> carries explicit inline fill + stroke attributes.
+  // Cricut Design Space (and some other importers) render paths without an
+  // inline fill as solid black — they don't inherit from the root <svg>.
+  // Forcing `fill="#hex" stroke="none"` on each path avoids that fallback.
+  out = out.replace(/<path\b([^>]*?)(\/?)>/gi, (_m, attrs: string, close: string) => {
+    let a = attrs;
+    if (!/\bfill\s*=/.test(a)) a = ` fill="${hex}"` + a;
+    if (!/\bstroke\s*=/.test(a)) a = a + ` stroke="none"`;
+    return `<path${a}${close}>`;
+  });
+
+  // Rebuild the opening <svg> tag with locked Cricut scaling. No root `fill`
+  // so nothing can force paths invisible — every path has its own inline fill.
+  // Background stays transparent (no <rect> emitted).
   out = out.replace(/<svg\b[^>]*>/i, () =>
     `<svg xmlns="http://www.w3.org/2000/svg" ` +
     `xmlns:xlink="http://www.w3.org/1999/xlink" ` +
     `width="${width}px" height="${height}px" ` +
-    `viewBox="0 0 ${width} ${height}" ` +
-    `fill="none">`,
+    `viewBox="0 0 ${width} ${height}">`,
   );
+
 
   if (!out.startsWith("<?xml")) {
     out = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + out;
