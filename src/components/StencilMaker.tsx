@@ -911,6 +911,10 @@ export function StencilMaker() {
         const scaled = buildIsolatedScaledImageData(i);
         if (!scaled) continue;
         const svg = traceLayerToSvg(scaled, fg, { background: bg });
+        try { validateExportSvg(svg); } catch (e) {
+          toast.error(`Layer ${i + 1} SVG failed validation: ${(e as Error).message}`);
+          continue;
+        }
         zip.file(`layer-${String(i + 1).padStart(2, "0")}.svg`, svg);
       }
     }
