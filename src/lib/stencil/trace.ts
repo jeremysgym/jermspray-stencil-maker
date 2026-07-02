@@ -11,11 +11,10 @@ export interface TraceOptions {
   pathomit?: number;
   scale?: number;
   /**
-   * Optional background color (hex like "#ffffff" or RGB tuple).
-   * Inserted as a full-bleed <rect> beneath the traced paths.
-   * If it matches the layer color it is automatically omitted so the
-   * layer never disappears into its own background.
-   * Pass null (default) for a transparent background.
+   * Final resolved background color for this export (hex or RGB).
+   * Callers (StencilMaker) already handle conflict-detection / swapping
+   * before calling in, so this is drawn as-is, no further checks here.
+   * Pass null for a transparent background.
    */
   background?: RGB | string | null;
 }
@@ -54,7 +53,7 @@ export function colorsConflict(a: RGB | string, b: RGB | string, tol = 12): bool
  * - Explicit width/height in px (Cricut imports at 96 DPI)
  * - viewBox in source pixel units (1:1 with width/height)
  * - All paths forced to the requested fill, no strokes, no transparent fills
- * - Root <svg> gets fill="none" and no background <rect> — transparent bg
+ * - Root <svg> gets no background rect by default — transparent bg
  *   so only foreground vector paths are exported.
  */
 function normalizeSvg(
@@ -115,7 +114,8 @@ function normalizeSvg(
   });
 
   // Rebuild the opening <svg> tag with locked Cricut scaling; no root fill
-  // (each path has its own inline fill). Background stays transparent.
+  // (each path has its own inline fill). Background stays transparent
+  // unless the caller adds a <rect> after this returns.
   out = out.replace(/<svg\b[^>]*>/i, () =>
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}px" height="${height}px" viewBox="0 0 ${width} ${height}">`,
   );
@@ -127,14 +127,10 @@ function normalizeSvg(
   return out;
 }
 
-/**
- * Traces an isolated single-color layer (transparent background, one
- * foreground color) into a Cricut/Silhouette-ready SVG string.
- */
-export function imageDataToSvg(
+function traceCore(
   imageData: ImageData,
   color: RGB,
-  options: TraceOptions = {},
+  options: TraceOptions,
 ): string {
   const { ltres = 1, qtres = 1, pathomit = 8, scale = 1, background = null } = options;
 
@@ -143,6 +139,8 @@ export function imageDataToSvg(
     qtres,
     pathomit,
     scale,
+    // Force a 2-color palette (transparent + the layer color) so the
+    // tracer doesn't quantize/anti-alias into extra shades.
     numberofcolors: 2,
     pal: [
       { r: 255, g: 255, b: 255, a: 0 },
@@ -152,13 +150,61 @@ export function imageDataToSvg(
 
   let svg = normalizeSvg(raw, imageData.width, imageData.height, color);
 
-  if (background != null && !colorsConflict(background, color)) {
+  if (background != null) {
     const bgHex = rgbHex(toRgb(background));
     svg = svg.replace(
       /<svg\b[^>]*>/i,
-      (tag) => `${tag}<rect x="0" y="0" width="${imageData.width}" height="${imageData.height}" fill="${bgHex}"/>`,
+      (tag) =>
+        `${tag}<rect x="0" y="0" width="${imageData.width}" height="${imageData.height}" fill="${bgHex}"/>`,
     );
   }
 
   return svg;
+}
+
+/**
+ * Traces one isolated color layer (transparent-bg ImageData) into a
+ * Cricut/Silhouette-ready SVG string, using the given foreground color.
+ */
+export function traceLayerToSvg(
+  imageData: ImageData,
+  color: RGB,
+  options: TraceOptions = {},
+): string {
+  return traceCore(imageData, color, options);
+}
+
+/**
+ * Traces the full black silhouette (transparent-bg ImageData) into a
+ * Cricut/Silhouette-ready SVG string.
+ */
+export function traceSilhouetteToSvg(
+  imageData: ImageData,
+  options: TraceOptions = {},
+): string {
+  return traceCore(imageData, [0, 0, 0], options);
+}
+
+/**
+ * Throws if the generated SVG is unsafe to hand to Cricut/Silhouette —
+ * e.g. empty output, missing root element/dimensions, no traced paths,
+ * or corrupted numeric path data.
+ */
+export function validateExportSvg(svg: string): void {
+  if (!svg || typeof svg !== "string") {
+    throw new Error("Empty SVG output");
+  }
+  if (!/<svg\b/i.test(svg)) {
+    throw new Error("Missing <svg> root element");
+  }
+  if (!/\bwidth="[\d.]+(?:px)?"/i.test(svg) || !/\bheight="[\d.]+(?:px)?"/i.test(svg)) {
+    throw new Error("Missing explicit width/height on <svg> root");
+  }
+  const pathCount = (svg.match(/<path\b/gi) || []).length;
+  if (pathCount === 0) {
+    throw new Error("No traced paths found — layer may be empty or fully transparent");
+  }
+  if (/NaN|Infinity/i.test(svg)) {
+    throw new Error("SVG contains invalid numeric path data (NaN/Infinity)");
+  }
 }
