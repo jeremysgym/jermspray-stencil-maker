@@ -460,10 +460,10 @@ export function StencilMaker() {
     const canvas = imageDataToCanvas(img);
     if (markersEnabled) {
       const ctx = canvas.getContext("2d")!;
-      drawMarkers(ctx, canvas.width, canvas.height, markerSize, markerInset, markerCorners);
+      drawMarkers(ctx, canvas.width, canvas.height, markerSize, markerInset, markerInsetTop, markerInsetBottom, markerCorners, markerLineWidth);
     }
     return canvas.toDataURL("image/png");
-  }, [workData, labels, palette, hiddenLayers, bgColor, markersEnabled, markerSize, markerInset, markerCorners]);
+  }, [workData, labels, palette, hiddenLayers, bgColor, markersEnabled, markerSize, markerInset, markerInsetTop, markerInsetBottom, markerCorners, markerLineWidth]);
 
   const originalUrl = useMemo(() => {
     if (!sourceData) return null;
