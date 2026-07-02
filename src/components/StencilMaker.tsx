@@ -54,6 +54,7 @@ import { detectAndRemoveBackground } from "@/lib/stencil/bg-removal";
 import { nameForHex } from "@/lib/stencil/color-name";
 import { traceLayerToSvg, traceSilhouetteToSvg, colorsConflict } from "@/lib/stencil/trace";
 import { dilateLayer, applyAutoBridges, buildNearWhiteMask } from "@/lib/stencil/mask-ops";
+import { cleanupLabels } from "@/lib/stencil/cleanup";
 import { ZoomPanImage } from "@/components/ZoomPanImage";
 import { toast } from "sonner";
 
@@ -321,6 +322,7 @@ export function StencilMaker() {
   const [bleedPx, setBleedPx] = useState(0);       // 0-8 px outward grow per color layer
   const [whiteTol, setWhiteTol] = useState(0);     // 0-60 near-white skip tolerance
   const [bridgePx, setBridgePx] = useState(0);     // 0-40 px auto-bridge width (~1mm ≈ 4px)
+  const [cleanupStrength, setCleanupStrength] = useState(0); // 0-100 remove tiny uncuttable specks
 
   // Markers
   const [markersEnabled, setMarkersEnabled] = useState(false);
@@ -420,12 +422,26 @@ export function StencilMaker() {
         numLayers,
         effectiveMask,
       );
+      let labels = result.labels;
+      // DETAIL CLEANUP: strip tiny uncuttable specks. Higher = more aggressive.
+      // Strength 0 = no cleanup; 100 removes components up to ~1.5% of canvas.
+      if (cleanupStrength > 0) {
+        const total = workData.width * workData.height;
+        const minArea = Math.max(2, Math.round((cleanupStrength / 100) * total * 0.015));
+        const closeR = cleanupStrength >= 66 ? 2 : cleanupStrength >= 33 ? 1 : 0;
+        const openR = cleanupStrength >= 50 ? 1 : 0;
+        labels = cleanupLabels(labels, workData.width, workData.height, result.palette.length, {
+          minArea,
+          closeRadius: closeR,
+          openRadius: openR,
+        });
+      }
       setPalette(result.palette);
-      setLabels(result.labels);
+      setLabels(labels);
       setHiddenLayers(new Set());
     }, 30);
     return () => clearTimeout(t);
-  }, [workData, numLayers, effectiveMask]);
+  }, [workData, numLayers, effectiveMask, cleanupStrength]);
 
 
   // Preview rendering
@@ -1247,7 +1263,43 @@ export function StencilMaker() {
                       Auto-bridges enclosed islands with {bridgePx}px cuts (~{(bridgePx / 4).toFixed(1)}mm at 96 DPI). 0 = off. Applied per layer at export.
                     </span>
                   </div>
+
+                  {/* DETAIL CLEANUP — remove tiny uncuttable specks */}
+                  <div className="flex flex-col gap-1 border-t pt-3">
+                    <Label className="text-xs font-semibold tracking-wide">
+                      DETAIL CLEANUP
+                    </Label>
+                    <span className="text-[11px] text-muted-foreground">
+                      Higher removes tiny uncuttable specks; lower keeps fine detail.
+                    </span>
+                    <span className="text-[11px] font-medium mt-1">Cleanup strength</span>
+                    <div className="flex items-center gap-3">
+                      <Slider
+                        value={[cleanupStrength]}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onValueChange={(v) => setCleanupStrength(v[0])}
+                        className="flex-1 min-w-[140px]"
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={cleanupStrength}
+                        onChange={(e) =>
+                          setCleanupStrength(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
+                        }
+                        className="w-20"
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>More detail</span>
+                      <span>More cuttable</span>
+                    </div>
+                  </div>
                 </div>
+
 
 
 
