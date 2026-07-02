@@ -322,6 +322,7 @@ export function StencilMaker() {
   const [bleedPx, setBleedPx] = useState(0);       // 0-8 px outward grow per color layer
   const [whiteTol, setWhiteTol] = useState(0);     // 0-60 near-white skip tolerance
   const [bridgePx, setBridgePx] = useState(0);     // 0-40 px auto-bridge width (~1mm ≈ 4px)
+  const [cleanupStrength, setCleanupStrength] = useState(0); // 0-100 remove tiny uncuttable specks
 
   // Markers
   const [markersEnabled, setMarkersEnabled] = useState(false);
