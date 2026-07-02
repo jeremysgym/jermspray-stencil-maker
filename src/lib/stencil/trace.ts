@@ -26,17 +26,12 @@ function rgbHex(c: RGB): string {
   return `#${h(c[0])}${h(c[1])}${h(c[2])}`;
 }
 
-function toRgb(c: RGB | string): RGB {
-  if (typeof c === "string") {
-    const s = c.replace("#", "");
-    return [
-      parseInt(s.slice(0, 2), 16),
-      parseInt(s.slice(2, 4), 16),
-      parseInt(s.slice(4, 6), 16),
-    ];
-  }
-  return c;
+if (!out.startsWith("<?xml")) {
+  out = `
+  ...whatever content spans multiple lines...
+  `;
 }
+
 
 /** Perceptual-ish distance; <=12 considered "same" for our safety check. */
 export function colorDistance(a: RGB, b: RGB): number {
