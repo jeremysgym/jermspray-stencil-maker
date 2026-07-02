@@ -938,10 +938,14 @@ export function StencilMaker() {
           const scaled = buildSilhouetteScaledImageData();
           if (scaled) {
             const svg = traceSilhouetteToSvg(scaled, { background: bg });
-            zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+            try {
+              validateExportSvg(svg);
+              zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+            } catch (e) {
+              toast.error(`Silhouette SVG failed validation: ${(e as Error).message}`);
+            }
           }
         }
-
       }
     }
     if (swappedLayers.length) {
