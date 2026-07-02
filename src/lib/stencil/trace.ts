@@ -56,59 +56,63 @@ export function colorsConflict(a: RGB | string, b: RGB | string, tol = 12): bool
  * - Root <svg> gets no background rect by default — transparent bg
  *   so only foreground vector paths are exported.
  */
-function normalizeSvg( 
-svg: string, 
-width: number, 
-height: number, 
-color: RGB, 
-): string { 
-const hex = rgbHex(color);
+import type { RGB } from "./quantize";
 
-let out = svg;
+function rgbHex({ r, g, b }: RGB): string {
+  return (
+    "#" +
+    [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("")
+  );
+}
 
-// Remove comments / metadata 
-out = out.replace(/<desc[\s\S]*?<\/desc>/gi, ""); 
-out = out.replace(/<!--[\s\S]*?-->/// 🚨 HARD FIX: remove ANY path with opacity="0"
-out = out.replace(
-  /<path\b[^>]*opacity="0"[^>]*\/?>/gi,
-  ""
-);
+/**
+ * Cricut-safe SVG normalizer (stable DOM version)
+ */
+function normalizeSvg(
+  svg: string,
+  width: number,
+  height: number,
+  color: RGB
+): string {
+  const hex = rgbHex(color);
 
+  const parser = new DOMParser();
+  const serializer = new XMLSerializer();
 
-out = out.replace( 
-/<path\b[^>]opacity="0[^"]"[^>]*/?>/gi, 
-"" 
-);
+  const doc = parser.parseFromString(svg, "image/svg+xml");
+  const svgEl = doc.querySelector("svg");
 
-out = out.replace( 
-/<path\b[^>]fill-opacity="0[^"]"[^>]*/?>/gi, 
-"" 
-);
+  if (!svgEl) return svg;
 
-// Remove full-canvas rectangles (background artifacts) 
-out = out.replace( 
-/<rect\b[^>]*width="?\d+"?[^>]height="?\d+"?[^>]/>/gi, 
-"" 
-);
+  // --- FIX CRICUT SCALING ---
+  svgEl.setAttribute("width", `${width}px`);
+  svgEl.setAttribute("height", `${height}px`);
+  svgEl.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svgEl.setAttribute("xmlns", "http://www.w3.org/2000/svg");
 
-// 🚨 DO NOT blindly recolor everything 
-// Instead only set fill IF it is a valid color path (has d attribute) 
-out = out.replace( 
-/<path\b(?![^>]opacity="0")[^>]>/gi, 
-(match) => { 
-// remove stroke noise 
-let cleaned = match 
-.replace(/\sstroke="[^"]"/g, "") 
-.replace(/\sstroke-width="[^"]"/g, "") 
-.replace(/\sfill-opacity="[^"]"/g, "") 
-.replace(/\sopacity="[^"]"/g, "");
+  // --- REMOVE METADATA ---
+  svgEl.querySelectorAll("desc, metadata, title").forEach(n => n.remove());
 
-  // ensure fill exists
-  if (!/fill=/.test(cleaned)) {
-    cleaned = cleaned.replace("<path", `<path fill="${hex}"`);
-  } else {
-    cleaned = cleaned.replace(/fill="[^"]*"/, `fill="${hex}"`);
-  }
+  // --- REMOVE INVISIBLE ELEMENTS ---
+  svgEl.querySelectorAll("*").forEach(el => {
+    const opacity = el.getAttribute("opacity");
+    const fillOpacity = el.getAttribute("fill-opacity");
+
+    if (opacity === "0" || fillOpacity === "0") {
+      el.remove();
+      return;
+    }
+
+    // Force stencil color
+    if (el.hasAttribute("fill")) {
+      el.setAttribute("fill", hex);
+    }
+
+    el.removeAttribute("stroke");
+  });
+
+  return serializer.serializeToString(doc);
+}
 
   // ensure no stroke
   if (!/stroke=/.test(cleaned)) {
