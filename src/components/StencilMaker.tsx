@@ -52,7 +52,7 @@ import {
 } from "@/lib/stencil/quantize";
 import { detectAndRemoveBackground } from "@/lib/stencil/bg-removal";
 import { nameForHex } from "@/lib/stencil/color-name";
-import { traceLayerToSvg, traceSilhouetteToSvg, colorsConflict } from "@/lib/stencil/trace";
+import { traceLayerToSvg, traceSilhouetteToSvg, colorsConflict, validateExportSvg } from "@/lib/stencil/trace";
 import { dilateLayer, applyAutoBridges, buildNearWhiteMask } from "@/lib/stencil/mask-ops";
 import { cleanupLabels } from "@/lib/stencil/cleanup";
 import { ZoomPanImage } from "@/components/ZoomPanImage";
@@ -108,19 +108,22 @@ function drawMarkers(
   width: number,
   height: number,
   size: number,
-  inset: number,
+  insetSide: number,
+  insetTop: number,
+  insetBottom: number,
   corners: { tl: boolean; tr: boolean; bl: boolean; br: boolean },
+  lineWidth: number,
   color = "#000",
 ) {
   ctx.save();
   ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1, size / 8);
+  ctx.lineWidth = Math.max(1, lineWidth);
   ctx.lineCap = "round";
   const positions: Array<[number, number]> = [];
-  if (corners.tl) positions.push([inset, inset]);
-  if (corners.tr) positions.push([width - inset, inset]);
-  if (corners.bl) positions.push([inset, height - inset]);
-  if (corners.br) positions.push([width - inset, height - inset]);
+  if (corners.tl) positions.push([insetSide, insetTop]);
+  if (corners.tr) positions.push([width - insetSide, insetTop]);
+  if (corners.bl) positions.push([insetSide, height - insetBottom]);
+  if (corners.br) positions.push([width - insetSide, height - insetBottom]);
   for (const [x, y] of positions) {
     ctx.beginPath();
     ctx.moveTo(x - size / 2, y);
@@ -131,6 +134,7 @@ function drawMarkers(
   }
   ctx.restore();
 }
+
 
 // --- Background removal editing dialog ----------------------------------
 function BgEditor({
@@ -328,7 +332,11 @@ export function StencilMaker() {
   const [markersEnabled, setMarkersEnabled] = useState(false);
   const [markerCorners, setMarkerCorners] = useState({ tl: true, tr: true, bl: true, br: true });
   const [markerSize, setMarkerSize] = useState(20);
-  const [markerInset, setMarkerInset] = useState(24);
+  const [markerInset, setMarkerInset] = useState(24);       // left/right distance from edge (px)
+  const [markerInsetTop, setMarkerInsetTop] = useState(24); // top distance (px)
+  const [markerInsetBottom, setMarkerInsetBottom] = useState(24); // bottom distance (px)
+  const [markerLineWidth, setMarkerLineWidth] = useState(2); // 1-10 stroke thickness (px)
+  const [markersOnLayers, setMarkersOnLayers] = useState(true); // draw markers on each exported layer
 
 
   // Zoom dialog
@@ -452,10 +460,10 @@ export function StencilMaker() {
     const canvas = imageDataToCanvas(img);
     if (markersEnabled) {
       const ctx = canvas.getContext("2d")!;
-      drawMarkers(ctx, canvas.width, canvas.height, markerSize, markerInset, markerCorners);
+      drawMarkers(ctx, canvas.width, canvas.height, markerSize, markerInset, markerInsetTop, markerInsetBottom, markerCorners, markerLineWidth);
     }
     return canvas.toDataURL("image/png");
-  }, [workData, labels, palette, hiddenLayers, bgColor, markersEnabled, markerSize, markerInset, markerCorners]);
+  }, [workData, labels, palette, hiddenLayers, bgColor, markersEnabled, markerSize, markerInset, markerInsetTop, markerInsetBottom, markerCorners, markerLineWidth]);
 
   const originalUrl = useMemo(() => {
     if (!sourceData) return null;
@@ -581,7 +589,7 @@ export function StencilMaker() {
     const ctx = c.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(src, 0, 0, outWidth, outHeight);
-    if (markersEnabled) drawMarkers(ctx, outWidth, outHeight, markerSize, markerInset, markerCorners);
+    if (markersEnabled) drawMarkers(ctx, outWidth, outHeight, markerSize, markerInset, markerInsetTop, markerInsetBottom, markerCorners, markerLineWidth);
     return c;
   };
 
@@ -603,12 +611,18 @@ export function StencilMaker() {
     let out = ctx.getImageData(0, 0, outWidth, outHeight);
     if (bleedPx > 0) out = dilateLayer(out, bleedPx, palette[layerIdx]);
     if (bridgePx > 0) out = applyAutoBridges(out, bridgePx);
+    // Draw corner markers on top so every exported layer aligns to the same
+    // registration crosses. Markers are rasterized in the layer's own color
+    // so they survive the single-color SVG trace.
+    if (markersEnabled && markersOnLayers) {
+      ctx.putImageData(out, 0, 0);
+      const hex = rgbToHex(palette[layerIdx]);
+      drawMarkers(ctx, outWidth, outHeight, markerSize, markerInset, markerInsetTop, markerInsetBottom, markerCorners, markerLineWidth, hex);
+      out = ctx.getImageData(0, 0, outWidth, outHeight);
+    }
     return out;
   };
 
-  // Silhouette is the "black outline" layer — bleed is intentionally skipped
-  // per stencil design rules, but auto-bridging still applies so the outline
-  // stays physically connected around interior holes.
   const buildSilhouetteScaledImageData = (): ImageData | null => {
     if (!workData || !labels) return null;
     const img = renderSilhouette(labels, workData.width, workData.height, [0, 0, 0], null);
@@ -621,6 +635,11 @@ export function StencilMaker() {
     ctx.drawImage(src, 0, 0, outWidth, outHeight);
     let out = ctx.getImageData(0, 0, outWidth, outHeight);
     if (bridgePx > 0) out = applyAutoBridges(out, bridgePx);
+    if (markersEnabled && markersOnLayers) {
+      ctx.putImageData(out, 0, 0);
+      drawMarkers(ctx, outWidth, outHeight, markerSize, markerInset, markerInsetTop, markerInsetBottom, markerCorners, markerLineWidth, "#000000");
+      out = ctx.getImageData(0, 0, outWidth, outHeight);
+    }
     return out;
   };
 
@@ -656,6 +675,10 @@ export function StencilMaker() {
       const scaled = buildIsolatedScaledImageData(layerIdx);
       if (!scaled) return;
       const svg = traceLayerToSvg(scaled, fg, { background: bg });
+      try { validateExportSvg(svg); } catch (e) {
+        toast.error(`Layer ${layerIdx + 1} SVG failed validation: ${(e as Error).message}`);
+        return;
+      }
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-layer-${layerIdx + 1}.svg`);
     }
   };
@@ -684,7 +707,10 @@ export function StencilMaker() {
       const scaled = buildSilhouetteScaledImageData();
       if (!scaled) return;
       const svg = traceSilhouetteToSvg(scaled, { background: bg });
-      // Silhouette is black; on white bg keep it black (already enforced by traceSilhouetteToSvg).
+      try { validateExportSvg(svg); } catch (e) {
+        toast.error(`Silhouette SVG failed validation: ${(e as Error).message}`);
+        return;
+      }
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-silhouette.svg`);
     }
   };
@@ -885,6 +911,10 @@ export function StencilMaker() {
         const scaled = buildIsolatedScaledImageData(i);
         if (!scaled) continue;
         const svg = traceLayerToSvg(scaled, fg, { background: bg });
+        try { validateExportSvg(svg); } catch (e) {
+          toast.error(`Layer ${i + 1} SVG failed validation: ${(e as Error).message}`);
+          continue;
+        }
         zip.file(`layer-${String(i + 1).padStart(2, "0")}.svg`, svg);
       }
     }
@@ -908,10 +938,14 @@ export function StencilMaker() {
           const scaled = buildSilhouetteScaledImageData();
           if (scaled) {
             const svg = traceSilhouetteToSvg(scaled, { background: bg });
-            zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+            try {
+              validateExportSvg(svg);
+              zip.file(`layer-${String(palette.length + 1).padStart(2, "0")}-silhouette.svg`, svg);
+            } catch (e) {
+              toast.error(`Silhouette SVG failed validation: ${(e as Error).message}`);
+            }
           }
         }
-
       }
     }
     if (swappedLayers.length) {
@@ -1454,8 +1488,52 @@ export function StencilMaker() {
                         />
                       </div>
                       <div className="flex items-center gap-3">
-                        <Label className="min-w-[110px] text-xs">Distance</Label>
+                        <Label className="min-w-[110px] text-xs">Line thickness</Label>
+                        <Slider value={[markerLineWidth]} min={1} max={10} step={1} onValueChange={(v) => setMarkerLineWidth(v[0])} />
+                        <Input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={markerLineWidth}
+                          onChange={(e) => setMarkerLineWidth(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                          className="w-20"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Label className="min-w-[110px] text-xs">Side distance</Label>
                         <Slider value={[markerInset]} min={0} max={200} step={1} onValueChange={(v) => setMarkerInset(v[0])} />
+                        <Input
+                          type="number"
+                          value={markerInset}
+                          onChange={(e) => setMarkerInset(Math.max(0, Number(e.target.value) || 0))}
+                          className="w-20"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Label className="min-w-[110px] text-xs">Top distance</Label>
+                        <Slider value={[markerInsetTop]} min={0} max={400} step={1} onValueChange={(v) => setMarkerInsetTop(v[0])} />
+                        <Input
+                          type="number"
+                          value={markerInsetTop}
+                          onChange={(e) => setMarkerInsetTop(Math.max(0, Number(e.target.value) || 0))}
+                          className="w-20"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Label className="min-w-[110px] text-xs">Bottom distance</Label>
+                        <Slider value={[markerInsetBottom]} min={0} max={400} step={1} onValueChange={(v) => setMarkerInsetBottom(v[0])} />
+                        <Input
+                          type="number"
+                          value={markerInsetBottom}
+                          onChange={(e) => setMarkerInsetBottom(Math.max(0, Number(e.target.value) || 0))}
+                          className="w-20"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Switch id="mark-layers" checked={markersOnLayers} onCheckedChange={setMarkersOnLayers} />
+                        <Label htmlFor="mark-layers" className="cursor-pointer text-xs">
+                          Show markers on each individual layer export
+                        </Label>
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Corners</Label>
