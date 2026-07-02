@@ -66,7 +66,13 @@ function normalizeSvg(
 ): string {
   let out = svg;
   const hex = rgbHex(color);
+  if (!out.startsWith("<?xml")) {
+    out = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+` + out;
+  }
 
+  return out;
+}
   // Strip metadata that some SVG parsers choke on.
   out = out.replace(/<desc[\s\S]*?<\/desc>/gi, "");
   out = out.replace(/<!--[\s\S]*?-->/g, "");
