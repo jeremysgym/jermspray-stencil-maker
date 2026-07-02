@@ -52,7 +52,7 @@ import {
 } from "@/lib/stencil/quantize";
 import { detectAndRemoveBackground } from "@/lib/stencil/bg-removal";
 import { nameForHex } from "@/lib/stencil/color-name";
-import { traceLayerToSvg, traceSilhouetteToSvg, colorsConflict } from "@/lib/stencil/trace";
+import { traceLayerToSvg, traceSilhouetteToSvg, colorsConflict, validateExportSvg } from "@/lib/stencil/trace";
 import { dilateLayer, applyAutoBridges, buildNearWhiteMask } from "@/lib/stencil/mask-ops";
 import { cleanupLabels } from "@/lib/stencil/cleanup";
 import { ZoomPanImage } from "@/components/ZoomPanImage";
