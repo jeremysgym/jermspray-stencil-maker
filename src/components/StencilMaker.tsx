@@ -707,7 +707,10 @@ export function StencilMaker() {
       const scaled = buildSilhouetteScaledImageData();
       if (!scaled) return;
       const svg = traceSilhouetteToSvg(scaled, { background: bg });
-      // Silhouette is black; on white bg keep it black (already enforced by traceSilhouetteToSvg).
+      try { validateExportSvg(svg); } catch (e) {
+        toast.error(`Silhouette SVG failed validation: ${(e as Error).message}`);
+        return;
+      }
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${projectName}-silhouette.svg`);
     }
   };
