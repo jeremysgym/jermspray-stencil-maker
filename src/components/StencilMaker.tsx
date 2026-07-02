@@ -332,7 +332,11 @@ export function StencilMaker() {
   const [markersEnabled, setMarkersEnabled] = useState(false);
   const [markerCorners, setMarkerCorners] = useState({ tl: true, tr: true, bl: true, br: true });
   const [markerSize, setMarkerSize] = useState(20);
-  const [markerInset, setMarkerInset] = useState(24);
+  const [markerInset, setMarkerInset] = useState(24);       // left/right distance from edge (px)
+  const [markerInsetTop, setMarkerInsetTop] = useState(24); // top distance (px)
+  const [markerInsetBottom, setMarkerInsetBottom] = useState(24); // bottom distance (px)
+  const [markerLineWidth, setMarkerLineWidth] = useState(2); // 1-10 stroke thickness (px)
+  const [markersOnLayers, setMarkersOnLayers] = useState(true); // draw markers on each exported layer
 
 
   // Zoom dialog
