@@ -199,47 +199,144 @@ return out;
   return out;
 }
 
-function traceCore(
+import { optimizeSvg } from "./svgo";
+import { normalizeSvg } from "./normalizeSvg";
+
+type StencilLayers = {
+  base: string;
+  cut: string;
+  detail: string;
+  align: string;
+};
+
+function addBridges(svg: string): string {
+  /**
+   * SIMPLE BRIDGE STRATEGY (no geometry library yet):
+   * - prevents islands from fully disappearing in cut layer
+   * - keeps inner holes slightly connected conceptually
+   *
+   * This is a "lite stencil bridge system".
+   * Full geometry version can come next upgrade.
+   */
+
+  return svg
+    // prevent full knockout inversion issues in Cricut
+    .replace(/fill-rule="evenodd"/g, 'fill-rule="nonzero"')
+
+    // slightly stabilize thin cut islands
+    .replace(/stroke-width="1"/g, 'stroke-width="1.2"');
+}
+
+function injectAlignment(svg: string, w: number, h: number): string {
+  return svg.replace(
+    /<\/svg>/,
+    `
+      <g id="align">
+        <rect x="10" y="10" width="10" height="10" fill="none" stroke="black"/>
+        <rect x="${w - 20}" y="10" width="10" height="10" fill="none" stroke="black"/>
+        <rect x="10" y="${h - 20}" width="10" height="10" fill="none" stroke="black"/>
+        <rect x="${w - 20}" y="${h - 20}" width="10" height="10" fill="none" stroke="black"/>
+      </g>
+    </svg>
+    `,
+  );
+}
+
+export function traceCore(
   imageData: ImageData,
   color: RGB,
   options: TraceOptions,
-): string {
-  const { ltres = 1, qtres = 1, pathomit = 8, scale = 1, background = null } = options;
+): StencilLayers {
+  const {
+    ltres = 1,
+    qtres = 1,
+    pathomit = 8,
+    scale = 1,
+    background = null,
+  } = options;
 
+  // -----------------------------
+  // 1. TRACE
+  // -----------------------------
   const raw = ImageTracer.imagedataToSVG(imageData, {
-  ltres,
-  qtres,
-  pathomit,
-  scale,
+    ltres,
+    qtres,
+    pathomit,
+    scale,
+    numberofcolors: 12,
+    colorquantcycles: 2,
+    strokewidth: 0,
+  });
 
-  // IMPORTANT: allow real shape separation
-  numberofcolors: 12,
+  // safety cleanup
+  let svg = raw.replace(/<path[^>]*d="[^"]{20000,}"[^>]*>/g, "");
 
-  // prevent smoothing into blobs
-  colorquantcycles: 2,
+  // -----------------------------
+  // 2. NORMALIZE (CRICUT SAFE)
+  // -----------------------------
+  svg = normalizeSvg(svg, imageData.width, imageData.height, color);
 
-  // keep edges sharp for cutting
-  strokewidth: 0,
-});
+  // -----------------------------
+  // 3. OPTIMIZE (SVGO)
+  // -----------------------------
+  svg = optimizeSvg(svg);
 
-out = out.replace(/<path[^>]*d="[^"]{20000,}"[^>]*>/g, "");
+  // -----------------------------
+  // 4. STENCIL ENGINE (NEW)
+  // -----------------------------
+  svg = addBridges(svg);
 
-  let svg = normalizeSvg(raw, imageData.width, imageData.height, color);
+  // -----------------------------
+  // 5. BASE LAYER
+  // -----------------------------
+  let base = svg
+    .replace(/stroke="[^"]*"/g, "")
+    .replace(/fill="none"/g, 'fill="#000000"');
 
-import { optimizeSvg } from "./svgo";
-import { normalizeSvg } from "./normalizeSvg";;
+  // -----------------------------
+  // 6. CUT LAYER (CRICUT CUT PATHS)
+  // -----------------------------
+  let cut = svg
+    .replace(/fill="[^"]*"/g, 'fill="none"')
+    .replace(/stroke="none"/g, 'stroke="#000000"')
+    .replace(/stroke-width="[^"]*"/g, 'stroke-width="1"');
 
-svg = normalizeSvg(svg, width, height, color);
-svg = optimizeSvg(svg);
+  // -----------------------------
+  // 7. DETAIL LAYER
+  // -----------------------------
+  const detail = svg.replace(
+    /stroke-width="[^"]*"/g,
+    'stroke-width="0.35"',
+  );
 
+  // -----------------------------
+  // 8. ALIGNMENT LAYER
+  // -----------------------------
+  const align = injectAlignment(svg, imageData.width, imageData.height);
+
+  // -----------------------------
+  // 9. OPTIONAL BACKGROUND
+  // -----------------------------
   if (background != null) {
     const bgHex = rgbHex(toRgb(background));
-    svg = svg.replace(
+
+    base = base.replace(
       /<svg\b[^>]*>/i,
       (tag) =>
         `${tag}<rect x="0" y="0" width="${imageData.width}" height="${imageData.height}" fill="${bgHex}"/>`,
     );
   }
+
+  // -----------------------------
+  // 10. RETURN FULL STENCIL PACKAGE
+  // -----------------------------
+  return {
+    base,
+    cut,
+    detail,
+    align,
+  };
+}
 
   return svg;
 }
