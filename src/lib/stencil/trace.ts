@@ -123,14 +123,18 @@ export function traceSilhouetteToSvg(
   imageData: ImageData,
   options: TraceOptions = {},
 ): string {
+  const hexToRgb = (s: string): RGB => {
+    const h = s.replace("#", "");
+    return [
+      parseInt(h.slice(0, 2), 16) || 0,
+      parseInt(h.slice(2, 4), 16) || 0,
+      parseInt(h.slice(4, 6), 16) || 0,
+    ];
+  };
   const color: RGB =
     typeof options.background === "string"
-      ? {
-          r: parseInt(options.background.replace("#", "").slice(0, 2), 16) || 0,
-          g: parseInt(options.background.replace("#", "").slice(2, 4), 16) || 0,
-          b: parseInt(options.background.replace("#", "").slice(4, 6), 16) || 0,
-        }
-      : (options.background as RGB) ?? { r: 0, g: 0, b: 0 };
+      ? hexToRgb(options.background)
+      : (options.background as RGB) ?? [0, 0, 0];
   const raw = ImageTracer.imagedataToSVG(imageData, {
     ltres: options.ltres ?? 1,
     qtres: options.qtres ?? 1,
@@ -151,16 +155,16 @@ export function colorsConflict(
   const toRgb = (c: RGB | string): RGB => {
     if (typeof c !== "string") return c;
     const h = c.replace("#", "");
-    return {
-      r: parseInt(h.slice(0, 2), 16) || 0,
-      g: parseInt(h.slice(2, 4), 16) || 0,
-      b: parseInt(h.slice(4, 6), 16) || 0,
-    };
+    return [
+      parseInt(h.slice(0, 2), 16) || 0,
+      parseInt(h.slice(2, 4), 16) || 0,
+      parseInt(h.slice(4, 6), 16) || 0,
+    ];
   };
   const x = toRgb(a);
   const y = toRgb(b);
   const d = Math.sqrt(
-    (x.r - y.r) ** 2 + (x.g - y.g) ** 2 + (x.b - y.b) ** 2,
+    (x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2 + (x[2] - y[2]) ** 2,
   );
   return d < threshold;
 }
