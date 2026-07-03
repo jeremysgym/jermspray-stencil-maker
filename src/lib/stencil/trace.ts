@@ -7,7 +7,7 @@ import { optimizeSvg } from "./svgo";
 import {
   parseSvgPaths,
   analyzeGeometry,
-} from "./stencilgeometry";
+} from "./stencilGeometry";
 
 import {
   generateBridges,
