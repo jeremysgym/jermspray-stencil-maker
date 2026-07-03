@@ -1,4 +1,4 @@
-import type { PathGeometry } from "./stencilgeometry";
+import type { PathGeometry } from "./stencilGeometry";
 
 export type BridgedPath = PathGeometry & {
   bridges: Bridge[];

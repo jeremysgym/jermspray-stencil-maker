@@ -7,7 +7,7 @@ import { optimizeSvg } from "./svgo";
 import {
   parseSvgPaths,
   analyzeGeometry,
-} from "./stencilgeometry";
+} from "./stencilGeometry";
 
 import {
   generateBridges,
@@ -107,7 +107,7 @@ export function traceLayerToSvg(
   color: RGB,
   options: TraceOptions = {},
 ): string {
-  return ImageTracer.imagedataToSVG(imageData, {
+  const raw = ImageTracer.imagedataToSVG(imageData, {
     ltres: options.ltres ?? 1,
     qtres: options.qtres ?? 1,
     pathomit: options.pathomit ?? 8,
@@ -116,4 +116,64 @@ export function traceLayerToSvg(
     colorquantcycles: 2,
     strokewidth: 0,
   });
+  return normalizeSvg(raw, imageData.width, imageData.height, color);
+}
+
+export function traceSilhouetteToSvg(
+  imageData: ImageData,
+  options: TraceOptions = {},
+): string {
+  const hexToRgb = (s: string): RGB => {
+    const h = s.replace("#", "");
+    return [
+      parseInt(h.slice(0, 2), 16) || 0,
+      parseInt(h.slice(2, 4), 16) || 0,
+      parseInt(h.slice(4, 6), 16) || 0,
+    ];
+  };
+  const color: RGB =
+    typeof options.background === "string"
+      ? hexToRgb(options.background)
+      : (options.background as RGB) ?? [0, 0, 0];
+  const raw = ImageTracer.imagedataToSVG(imageData, {
+    ltres: options.ltres ?? 1,
+    qtres: options.qtres ?? 1,
+    pathomit: options.pathomit ?? 8,
+    scale: options.scale ?? 1,
+    numberofcolors: 2,
+    colorquantcycles: 2,
+    strokewidth: 0,
+  });
+  return normalizeSvg(raw, imageData.width, imageData.height, color);
+}
+
+export function colorsConflict(
+  a: RGB | string,
+  b: RGB | string,
+  threshold = 40,
+): boolean {
+  const toRgb = (c: RGB | string): RGB => {
+    if (typeof c !== "string") return c;
+    const h = c.replace("#", "");
+    return [
+      parseInt(h.slice(0, 2), 16) || 0,
+      parseInt(h.slice(2, 4), 16) || 0,
+      parseInt(h.slice(4, 6), 16) || 0,
+    ];
+  };
+  const x = toRgb(a);
+  const y = toRgb(b);
+  const d = Math.sqrt(
+    (x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2 + (x[2] - y[2]) ** 2,
+  );
+  return d < threshold;
+}
+
+export function validateExportSvg(svg: string): void {
+  if (!svg || !/<path\b/i.test(svg)) {
+    throw new Error("Exported SVG contains no <path> elements.");
+  }
+  if (!/fill\s*=\s*"(#[0-9a-fA-F]{3,8}|none)"/.test(svg)) {
+    throw new Error("Exported SVG paths are missing inline fill attributes.");
+  }
 }
