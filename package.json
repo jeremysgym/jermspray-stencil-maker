@@ -53,6 +53,7 @@
     "react-resizable-panels": "^4.6.5",
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
+    "svg-pathdata": "^9.0.0",
     "svgo": "^3.3.2",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
