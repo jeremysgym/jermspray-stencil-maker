@@ -1,0 +1,21 @@
+src/lib/stencil-v2/
+    parser/
+        svgParser.ts
+        colorExtractor.ts
+
+    geometry/
+        pathGeometry.ts
+        holeDetection.ts
+        bridgeEngine.ts
+
+    layers/
+        layerBuilder.ts
+        registrationMarks.ts
+
+    exporter/
+        svgExporter.ts
+        zipExporter.ts
+
+    validation/
+        svgValidator.ts
+        cricutValidator.ts
