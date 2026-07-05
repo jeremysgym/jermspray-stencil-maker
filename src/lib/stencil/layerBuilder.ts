@@ -13,94 +13,65 @@ export type LayerOptions = {
   strokeWidth?: number;
 };
 
-/* -------------------------------------------------------
-   MAIN ENTRY
-------------------------------------------------------- */
 export function buildStencilLayers(
   svg: string,
   paths: BridgedPath[],
   opts: LayerOptions,
 ): StencilLayers {
-  const base = buildBaseLayer(svg, paths);
-  const cut = buildCutLayer(svg, paths);
-  const detail = buildDetailLayer(svg, paths);
-  const align = buildAlignmentLayer(opts.width, opts.height);
+  const baseSvg = stripBridgeRects(svg);
 
-  return { base, cut, detail, align };
+  return {
+    base: buildBaseLayer(baseSvg),
+    cut: buildCutLayer(baseSvg),
+    detail: buildDetailLayer(baseSvg),
+    align: buildAlignmentLayer(opts.width, opts.height),
+  };
 }
 
-/* -------------------------------------------------------
-   BASE LAYER
-   - Solid fill stencil preview
-------------------------------------------------------- */
-function buildBaseLayer(svg: string, paths: BridgedPath[]): string {
-  let out = svg;
-
-  // ensure visible fill
-  out = out.replace(/fill="none"/g, 'fill="#000000"');
-
-  // remove bridge artifacts from preview
-  out = stripBridgeRects(out);
-
-  return out;
+function buildBaseLayer(svg: string): string {
+  return svg
+    .replace(/fill="none"/gi, 'fill="#000000"')
+    .replace(/stroke="[^"]*"/gi, "")
+    .replace(/stroke-width="[^"]*"/gi, "");
 }
 
-/* -------------------------------------------------------
-   CUT LAYER
-   - actual Cricut cut paths
-------------------------------------------------------- */
-function buildCutLayer(svg: string, paths: BridgedPath[]): string {
-  let out = svg;
-
-  // remove fills, keep outlines
-  out = out.replace(/fill="[^"]*"/g, 'fill="none"');
-
-  // enforce cut stroke
-  out = out.replace(
-    /<path\b/g,
-    `<path stroke="#000000" stroke-width="1" fill="none"`
-  );
-
-  out = stripBridgeRects(out);
-
-  return out;
+function buildCutLayer(svg: string): string {
+  return svg
+    .replace(/fill="[^"]*"/gi, 'fill="none"')
+    .replace(/stroke="[^"]*"/gi, 'stroke="#000000"')
+    .replace(/stroke-width="[^"]*"/gi, 'stroke-width="1"')
+    .replace(
+      /<path(?![^>]*stroke=)/gi,
+      '<path stroke="#000000" stroke-width="1" fill="none"'
+    );
 }
 
-/* -------------------------------------------------------
-   DETAIL LAYER
-   - fine stroke preview for UI
-------------------------------------------------------- */
-function buildDetailLayer(svg: string, paths: BridgedPath[]): string {
-  let out = svg;
-
-  out = out.replace(
-    /stroke-width="[^"]*"/g,
-    'stroke-width="0.4"'
-  );
-
-  return stripBridgeRects(out);
+function buildDetailLayer(svg: string): string {
+  return svg
+    .replace(/fill="none"/gi, 'fill="#000000"')
+    .replace(/stroke-width="[^"]*"/gi, 'stroke-width="0.4"')
+    .replace(
+      /<path(?![^>]*stroke=)/gi,
+      '<path stroke="#000000" stroke-width="0.4"'
+    );
 }
 
-/* -------------------------------------------------------
-   ALIGNMENT LAYER
-------------------------------------------------------- */
-function buildAlignmentLayer(w: number, h: number): string {
-  return `
+function buildAlignmentLayer(width: number, height: number): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
-     width="${w}"
-     height="${h}"
-     viewBox="0 0 ${w} ${h}">
-  <rect x="10" y="10" width="10" height="10" fill="none" stroke="black"/>
-  <rect x="${w - 20}" y="10" width="10" height="10" fill="none" stroke="black"/>
-  <rect x="10" y="${h - 20}" width="10" height="10" stroke="black" fill="none"/>
-  <rect x="${w - 20}" y="${h - 20}" width="10" height="10" stroke="black" fill="none"/>
-</svg>
-  `.trim();
+     width="${width}"
+     height="${height}"
+     viewBox="0 0 ${width} ${height}">
+  <rect x="10" y="10" width="10" height="10" fill="none" stroke="#000"/>
+  <rect x="${width - 20}" y="10" width="10" height="10" fill="none" stroke="#000"/>
+  <rect x="10" y="${height - 20}" width="10" height="10" fill="none" stroke="#000"/>
+  <rect x="${width - 20}" y="${height - 20}" width="10" height="10" fill="none" stroke="#000"/>
+</svg>`;
 }
 
-/* -------------------------------------------------------
-   REMOVE BRIDGE MARKERS FROM OUTPUT
-------------------------------------------------------- */
 function stripBridgeRects(svg: string): string {
-  return svg.replace(/<rect[^>]*bridge[^>]*>/gi, "");
+  return svg.replace(
+    /<rect[^>]*(?:bridge|bridge-marker)[^>]*\/?>/gi,
+    "",
+  );
 }
