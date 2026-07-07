@@ -74,30 +74,84 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "JermSpray Stencil Maker" },
-      { name: "description", content: "Multilayer stencil maker for spray painting. Upload an image, auto-detect colors, generate numbered layers, and download SVG/PNG stencils." },
-      { property: "og:title", content: "JermSpray Stencil Maker" },
-      { property: "og:description", content: "Multilayer stencil maker for spray painting. Upload an image, auto-detect colors, generate numbered layers, and download SVG/PNG stencils." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "JermSpray Stencil Maker" },
-      { name: "twitter:description", content: "Multilayer stencil maker for spray painting. Upload an image, auto-detect colors, generate numbered layers, and download SVG/PNG stencils." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ce91ce00-3f4b-421c-8d27-dc8a618aec88/id-preview-87128212--372c7713-9612-40bd-abfd-50791ddadafb.lovable.app-1781468826283.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ce91ce00-3f4b-421c-8d27-dc8a618aec88/id-preview-87128212--372c7713-9612-40bd-abfd-50791ddadafb.lovable.app-1781468826283.png" },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "icon", type: "image/png", href: "/__l5e/assets-v1/2c43d149-8a5d-4bf8-bb93-79256197fc8f/jermspray-icon.png" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;500;600;700&display=swap" },
-    ],
+ head: () => ({
+  meta: [
+    { charSet: "utf-8" },
+    { name: "viewport", content: "width=device-width, initial-scale=1" },
 
-  }),
+    { title: "The EmberDragon Forge" },
+
+    {
+      name: "description",
+      content:
+        "Professional stencil, SVG, laser, vinyl, and vector design studio powered by JermSpray Core.",
+    },
+
+    {
+      property: "og:title",
+      content: "The EmberDragon Forge",
+    },
+
+    {
+      property: "og:description",
+      content:
+        "Professional stencil, SVG, laser, vinyl, and vector design studio powered by JermSpray Core.",
+    },
+
+    {
+      property: "og:type",
+      content: "website",
+    },
+
+    {
+      name: "twitter:card",
+      content: "summary_large_image",
+    },
+
+    {
+      name: "twitter:title",
+      content: "The EmberDragon Forge",
+    },
+
+    {
+      name: "twitter:description",
+      content:
+        "Professional stencil, SVG, laser, vinyl, and vector design studio powered by JermSpray Core.",
+    },
+
+    {
+      property: "og:image",
+      content:
+        "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ce91ce00-3f4b-421c-8d27-dc8a618aec88/id-preview-87128212--372c7713-9612-40bd-abfd-50791ddadafb.lovable.app-1781468826283.png",
+    },
+
+    {
+      name: "twitter:image",
+      content:
+        "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ce91ce00-3f4b-421c-8d27-dc8a618aec88/id-preview-87128212--372c7713-9612-40bd-abfd-50791ddadafb.lovable.app-1781468826283.png",
+    },
+  ],
+
+  links: [
+    { rel: "stylesheet", href: appCss },
+    {
+      rel: "icon",
+      type: "image/png",
+      href: "/__l5e/assets-v1/2c43d149-8a5d-4bf8-bb93-79256197fc8f/jermspray-icon.png",
+    },
+    { rel: "preconnect", href: "https://fonts.googleapis.com" },
+    {
+      rel: "preconnect",
+      href: "https://fonts.gstatic.com",
+      crossOrigin: "anonymous",
+    },
+    {
+      rel: "stylesheet",
+      href:
+        "https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;500;600;700&display=swap",
+    },
+  ],
+}),
 
   shellComponent: RootShell,
   component: RootComponent,
